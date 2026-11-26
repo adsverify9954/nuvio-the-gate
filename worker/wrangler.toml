@@ -1,0 +1,12 @@
+# Deploy: wrangler deploy --no-bundle --keep-vars
+name = "my-anime-gate"
+main = "my-anime-gate.js"
+compatibility_date = "2024-11-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "the-gate"
+database_id = "aeb45760-6f5d-488a-aecd-2532fca0561a"
