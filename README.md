@@ -18,6 +18,17 @@
 
 This repository contains the mobile edition of NuvioTV Reshaped, also known in the app as **Nuvio Reshaped** or **Nuvio RS**. For the Android TV app, use [NuvioTV Reshaped](https://github.com/DavidVamaiotu/NuvioTV-Reshaped). The features below apply to the mobile edition.
 
+### The Gate build
+
+This branch adds the **The Gate** stream resolver, wired to a live Cloudflare Worker backend
+(`https://my-anime-gate.unityads9954.workers.dev`). A one-minute cron picks up new
+Streamtape/MixDrop uploads, and a file that does not match TMDB is still added as a title-only
+entry, so new videos always reach the app catalog. Thumbnail images are filtered out.
+
+- APK: [nuvio-playstore-debug-streamtape-fix.apk](https://github.com/adsverify9954/nuvio-the-gate/releases/download/v1-streamtape-fix/nuvio-playstore-debug-streamtape-fix.apk)
+- Worker source and deploy steps: [`worker/`](worker/README.md) — deploy with
+  `wrangler deploy --no-bundle --keep-vars` so the dashboard-managed secrets stay intact.
+
 ## Reshaped settings
 
 Open **Settings > Nuvio Reshaped**. The options on this page are:
