@@ -3309,6 +3309,10 @@ async function listMixdropUploads(env, db, cache) {
 }
 __name(listMixdropUploads, "listMixdropUploads");
 var lastSyncErrors = [];
+var NOISE_PREFIXES = ["debug:", "scan-cap", "budget:", "processed-cap", "skip-not-ready"];
+function realSyncErrors() {
+  return lastSyncErrors.filter((x) => !NOISE_PREFIXES.some((p) => String(x).startsWith(p)));
+}
 function cleanReleaseTags(name) {
   let s = String(name || "").replace(/^thumb[_\-\s.]+/i, "").replace(/\.(mp4|mkv|avi|webm|ts|m4v|jpe?g|png|webp)$/i, "");
   s = s.replace(/^[\s._-]*[\(\[\{][^\)\]\}]{1,40}[\)\]\}][\s._-]*-?[\s._-]*/g, " ");
@@ -3687,7 +3691,7 @@ async function runSync(env) {
   }
   if (stmts.length > 0) {
     stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind((/* @__PURE__ */ new Date()).toISOString()));
-    stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(lastSyncErrors).slice(0, 4e3)));
+    stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(realSyncErrors()).slice(0, 4e3)));
     stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('sync_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(uploads.length ? (syncCursor + examined) % uploads.length : 0)));
     try {
       await db.batch(stmts);
@@ -3698,7 +3702,7 @@ async function runSync(env) {
     try {
       await db.batch([
         db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind((/* @__PURE__ */ new Date()).toISOString()),
-        db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(lastSyncErrors).slice(0, 4e3)),
+        db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(realSyncErrors()).slice(0, 4e3)),
         db.prepare("INSERT INTO sync_state (key,value) VALUES ('sync_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(uploads.length ? (syncCursor + examined) % uploads.length : 0))
       ]);
     } catch (e) {
@@ -3709,7 +3713,7 @@ async function runSync(env) {
   cleanup.push(db.prepare("UPDATE media_items SET is_active=0, updated_at=datetime('now') WHERE streamtape_url='' AND vidmoly_url='' AND mixdrop_url='' AND ufoload_url='' AND abyss_url='' AND byse_url='' AND earnvids_url='' AND doodstream_url='' AND is_title_only=0"));
   cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind((/* @__PURE__ */ new Date()).toISOString()));
   cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncCount',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(ingested)));
-  cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(lastSyncErrors).slice(0, 4e3)));
+  cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(realSyncErrors()).slice(0, 4e3)));
   cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('sync_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(uploads.length ? (syncCursor + examined) % uploads.length : 0)));
   try {
     await db.batch(cleanup);
@@ -4827,7 +4831,7 @@ app.get("/api/sync", async (c) => {
   }
   try {
     const ingested = await runSync(c.env);
-    return c.json({ ok: true, ingested, errors: lastSyncErrors });
+    return c.json({ ok: true, ingested, errors: realSyncErrors() });
   } catch (e) {
     return c.json({ ok: false, error: String(e), stack: e?.stack ?? null }, 500);
   }
