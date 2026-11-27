@@ -19,11 +19,6 @@ data class StreamLaunch(
     val resumeProgressFraction: Float? = null,
     val manualSelection: Boolean = false,
     val startFromBeginning: Boolean = false,
-    /**
-     * Netflix-style "Play": start the first available stream right away even
-     * when the global auto-play mode is manual (home hero button).
-     */
-    val forceAutoPlay: Boolean = false,
 )
 
 object StreamLaunchStore {

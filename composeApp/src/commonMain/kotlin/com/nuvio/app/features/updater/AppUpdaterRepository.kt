@@ -1,7 +1,6 @@
 package com.nuvio.app.features.updater
 
 import com.nuvio.app.features.addons.httpRequestRaw
-import com.nuvio.app.features.reshaped.ReshapedApkAssets
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.SerialName
@@ -41,7 +40,7 @@ internal object AppUpdaterRepository {
     suspend fun getLatestChannelUpdate(channel: UpdateChannel): Result<AppUpdate> = runCatching {
         val response = httpRequestRaw(
             method = "GET",
-            url = "https://api.github.com/repos/DavidVamaiotu/NuvioMobile-AutoSync/${releasePath(channel)}",
+            url = "https://api.github.com/repos/NuvioMedia/NuvioMobile/${releasePath(channel)}",
             headers = mapOf(
                 "Accept" to "application/vnd.github+json",
                 "User-Agent" to "NuvioMobile",
@@ -94,10 +93,6 @@ internal object AppUpdaterRepository {
         val apkAssets = assets.filter { asset ->
             asset.name.endsWith(".apk", ignoreCase = true) ||
                 asset.contentType == "application/vnd.android.package-archive"
-        }
-        // Nuvio RS hook: releases also carry the legacy bridge APK, which this build must skip.
-        ReshapedApkAssets.choose(apkAssets.map { it.name }, supportedAbis)?.let { name ->
-            return apkAssets.first { it.name == name }
         }
         for (abi in supportedAbis) {
             apkAssets.firstOrNull { it.name.contains(abi, ignoreCase = true) }?.let { return it }

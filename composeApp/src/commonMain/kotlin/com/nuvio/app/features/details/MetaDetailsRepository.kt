@@ -54,7 +54,6 @@ object MetaDetailsRepository {
     val uiState: StateFlow<MetaDetailsUiState> = _uiState.asStateFlow()
     private var activeRequestKey: String? = null
     private val cachedMetaByRequestKey = mutableMapOf<String, CachedMetaEntry>()
-    private val cachedMetaFetchedAtMs = mutableMapOf<String, Long>()
 
     fun load(type: String, id: String) {
         log.d { "load() called — type=$type id=$id" }
@@ -67,9 +66,7 @@ object MetaDetailsRepository {
         val mdbListSettings = MdbListSettingsRepository.snapshot()
         val metaScreenSettingsFingerprint = buildMetaScreenSettingsFingerprint(mdbListSettings)
 
-        cachedMetaByRequestKey[requestKey]
-            ?.takeIf { !isMetaCacheStale(requestKey) }
-            ?.let { cachedEntry ->
+        cachedMetaByRequestKey[requestKey]?.let { cachedEntry ->
             cachedEntry.metaScreenMeta
                 ?.takeIf { cachedEntry.metaScreenSettingsFingerprint == metaScreenSettingsFingerprint }
                 ?.let { cachedMeta ->
@@ -203,37 +200,20 @@ object MetaDetailsRepository {
         return cachedMeta.withUnreleasedFilter()
     }
 
-    /**
-     * In-memory meta cache TTL. Episode lists change when a new upload lands in the
-     * catalog, so a cached entry older than the TTL must be refetched — otherwise a
-     * freshly uploaded episode never shows up until the app process restarts.
-     */
-    private fun isMetaCacheStale(requestKey: String, nowMs: Long = CurrentDateProvider.nowEpochMs()): Boolean {
-        // Timestamp nahi hai (ya externally injected entry) → cache fresh maano,
-        // warna cached-but-stale path turant bypass ho jayega.
-        val fetchedAt = cachedMetaFetchedAtMs[requestKey] ?: return false
-        return nowMs - fetchedAt > META_CACHE_TTL_MS
-    }
-
-    private fun rememberMetaFetchTime(requestKey: String) {
-        cachedMetaFetchedAtMs[requestKey] = CurrentDateProvider.nowEpochMs()
-    }
-
     fun clear() {
         activeRequestKey = null
         cachedMetaByRequestKey.clear()
-        cachedMetaFetchedAtMs.clear()
         _uiState.value = MetaDetailsUiState()
     }
 
-    suspend fun fetch(type: String, id: String, cacheResult: Boolean = true, bypassCache: Boolean = false): MetaDetails? {
+    suspend fun fetch(type: String, id: String, cacheResult: Boolean = true): MetaDetails? {
         val requestKey = "$type:$id"
-        if (!bypassCache) cachedMetaByRequestKey[requestKey]?.let { return it.baseMeta }
+        cachedMetaByRequestKey[requestKey]?.let { return it.baseMeta }
         ServerItemRef.parse(id)?.let { ref ->
             return runCatching { ServerCatalog.details(ref).meta }
                 .onFailure { if (it is CancellationException) throw it }
                 .getOrNull()
-                ?.also { if (cacheResult) { cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = it); rememberMetaFetchTime(requestKey) } }
+                ?.also { if (cacheResult) cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = it) }
         }
 
         val metaLookupId = resolveMetaLookupId(itemId = id, itemType = type)
@@ -246,7 +226,6 @@ object MetaDetailsRepository {
             if (result != null) {
                 if (cacheResult) {
                     cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
-                    rememberMetaFetchTime(requestKey)
                 }
                 return result
             }
@@ -255,7 +234,6 @@ object MetaDetailsRepository {
         return tryFetchTmdbFallbackMeta(type = type, id = id)?.also { result ->
             if (cacheResult) {
                 cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
-                    rememberMetaFetchTime(requestKey)
             }
         }
     }
@@ -275,7 +253,6 @@ object MetaDetailsRepository {
                     val meta = details.meta
                     ServerUserStateProjection.apply(details)
                     cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = meta)
-                    rememberMetaFetchTime(requestKey)
                     _uiState.value = MetaDetailsUiState(meta = meta)
                 },
                 onFailure = { error ->
@@ -296,9 +273,6 @@ object MetaDetailsRepository {
     private const val METADATA_PROVIDER_READY_TIMEOUT_MS = 10_000L
     private const val TMDB_ENRICH_TIMEOUT_MS = 5_000L
     private const val MDBLIST_ENRICH_TIMEOUT_MS = 5_000L
-
-    /** Meta (episode list) in-memory cache TTL — naye upload turant dikhne chahiye. */
-    private const val META_CACHE_TTL_MS = Long.MAX_VALUE
 
     private suspend fun tryFetchMeta(
         manifest: AddonManifest,
@@ -413,7 +387,6 @@ object MetaDetailsRepository {
     ) {
         val cachedEntry = CachedMetaEntry(baseMeta = meta)
         cachedMetaByRequestKey[requestKey] = cachedEntry
-        rememberMetaFetchTime(requestKey)
 
         if (!shouldEnrichForMetaScreen(meta, fallbackItemId, mdbListSettings)) {
             _uiState.value = MetaDetailsUiState(meta = meta.withUnreleasedFilter())

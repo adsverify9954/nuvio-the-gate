@@ -14,21 +14,12 @@ actual object StreamBadgeSettingsStorage {
     private const val streamBadgeRulesKey = "stream_badge_rules"
     private const val showFileSizeBadgesKey = "show_file_size_badges"
     private const val showAddonLogoKey = "show_addon_logo"
-    private const val preferConnectionFitKey = "prefer_connection_fit"
+    private const val showInPlayerKey = "show_badges_in_player"
+    private const val playerBadgeSourceKey = "player_badge_source"
     private const val streamBackgroundModeKey = "stream_background_mode"
     private const val streamBadgePlacementKey = "stream_badge_placement"
     private const val legacyDebridStreamBadgeRulesKey = "debrid_stream_badge_rules"
-    private const val showInPlayerKey = "show_badges_in_player"
-    private const val playerBadgeSourceKey = "player_badge_source"
-    private val syncKeys = listOf(
-        streamBadgeRulesKey,
-        showFileSizeBadgesKey,
-        preferConnectionFitKey,
-        showInPlayerKey,
-        playerBadgeSourceKey,
-        streamBadgePlacementKey,
-        streamBackgroundModeKey,
-    )
+    private val syncKeys = listOf(streamBadgeRulesKey, showFileSizeBadgesKey, showInPlayerKey, playerBadgeSourceKey, streamBadgePlacementKey, streamBackgroundModeKey)
 
     actual fun loadStreamBadgeRules(): String? = loadString(streamBadgeRulesKey)
 
@@ -46,12 +37,6 @@ actual object StreamBadgeSettingsStorage {
 
     actual fun saveShowAddonLogo(enabled: Boolean) {
         saveBoolean(showAddonLogoKey, enabled)
-    }
-
-    actual fun loadPreferConnectionFit(): Boolean? = loadBoolean(preferConnectionFitKey)
-
-    actual fun savePreferConnectionFit(enabled: Boolean) {
-        saveBoolean(preferConnectionFitKey, enabled)
     }
 
     actual fun loadShowInPlayer(): Boolean? = loadBoolean(showInPlayerKey)
@@ -109,7 +94,6 @@ actual object StreamBadgeSettingsStorage {
     actual fun exportToSyncPayload(): JsonObject = buildJsonObject {
         loadStreamBadgeRules()?.let { put(streamBadgeRulesKey, encodeSyncString(it)) }
         loadShowFileSizeBadges()?.let { put(showFileSizeBadgesKey, encodeSyncBoolean(it)) }
-        loadPreferConnectionFit()?.let { put(preferConnectionFitKey, encodeSyncBoolean(it)) }
         loadShowInPlayer()?.let { put(showInPlayerKey, encodeSyncBoolean(it)) }
         loadPlayerBadgeSource()?.let { put(playerBadgeSourceKey, encodeSyncString(it)) }
         loadStreamBadgePlacement()?.let { put(streamBadgePlacementKey, encodeSyncString(it)) }
@@ -123,7 +107,6 @@ actual object StreamBadgeSettingsStorage {
 
         payload.decodeSyncString(streamBadgeRulesKey)?.let(::saveStreamBadgeRules)
         payload.decodeSyncBoolean(showFileSizeBadgesKey)?.let(::saveShowFileSizeBadges)
-        payload.decodeSyncBoolean(preferConnectionFitKey)?.let(::savePreferConnectionFit)
         payload.decodeSyncBoolean(showInPlayerKey)?.let(::saveShowInPlayer)
         payload.decodeSyncString(playerBadgeSourceKey)?.let(::savePlayerBadgeSource)
         payload.decodeSyncString(streamBadgePlacementKey)?.let(::saveStreamBadgePlacement)

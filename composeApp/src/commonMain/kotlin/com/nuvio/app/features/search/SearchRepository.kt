@@ -35,18 +35,10 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import com.nuvio.app.features.tmdb.TmdbService
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
-
-/** Type-ahead suggestions: minimum query length before we hit the network. */
-private const val SUGGESTION_MIN_LENGTH = 2
-
-/** Debounce between keystrokes for the type-ahead suggestion lookup. */
-private const val SUGGESTION_DEBOUNCE_MS = 220L
 
 internal fun <T> canReuseRequestState(
     forceRefresh: Boolean,
@@ -76,42 +68,6 @@ object SearchRepository {
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
     private val _discoverUiState = MutableStateFlow(DiscoverUiState())
     val discoverUiState: StateFlow<DiscoverUiState> = _discoverUiState.asStateFlow()
-
-    // Live type-ahead suggestions (Zangetsu-style): debounced + cached so
-    // re-typing a prefix never re-hits the network.
-    private val _suggestions = MutableStateFlow<List<String>>(emptyList())
-    val suggestions: StateFlow<List<String>> = _suggestions.asStateFlow()
-    private var suggestionJob: Job? = null
-    private val suggestionCache = linkedMapOf<String, List<String>>()
-
-    fun suggest(query: String) {
-        val normalized = query.trim()
-        if (normalized.length < SUGGESTION_MIN_LENGTH) {
-            suggestionJob?.cancel()
-            _suggestions.value = emptyList()
-            return
-        }
-        val key = normalized.lowercase()
-        suggestionCache[key]?.let { cached ->
-            _suggestions.value = cached
-            return
-        }
-        suggestionJob?.cancel()
-        suggestionJob = scope.launch {
-            delay(SUGGESTION_DEBOUNCE_MS)
-            val titles = runCatching { TmdbService.searchTitles(normalized, limit = 8) }
-                .onFailure { error -> log.w { "Suggestion lookup failed: ${error.message}" } }
-                .getOrDefault(emptyList())
-            if (titles.isEmpty()) return@launch
-            suggestionCache[key] = titles
-            _suggestions.value = titles
-        }
-    }
-
-    fun clearSuggestions() {
-        suggestionJob?.cancel()
-        _suggestions.value = emptyList()
-    }
 
     private var activeJob: Job? = null
     private var activeDiscoverJob: Job? = null

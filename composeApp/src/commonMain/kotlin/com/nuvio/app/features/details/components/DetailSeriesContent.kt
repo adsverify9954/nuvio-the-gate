@@ -67,6 +67,7 @@ import com.nuvio.app.core.i18n.localizedSeasonEpisodeCode
 import com.nuvio.app.core.ui.NuvioAnimatedWatchedBadge
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioProgressBar
+import com.nuvio.app.core.ui.backdropControlColor
 import com.nuvio.app.core.ui.nuvioCardDepth
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.posterCardClickable
@@ -320,7 +321,6 @@ internal fun DetailSeriesListEpisode(
     episodeRatings: Map<Pair<Int, Int>, Double>,
     episodeRatingsVisibility: EpisodeRatingsVisibility,
     blurUnwatchedEpisodes: Boolean,
-    isCurrentEpisode: Boolean = false,
     onEpisodeClick: ((MetaVideo) -> Unit)?,
     onEpisodeLongPress: ((MetaVideo) -> Unit)?,
     modifier: Modifier = Modifier,
@@ -347,7 +347,6 @@ internal fun DetailSeriesListEpisode(
                 ),
             episodeRatingsVisibility = episodeRatingsVisibility,
             blurUnwatchedEpisodes = blurUnwatchedEpisodes,
-            isCurrentEpisode = isCurrentEpisode,
             sizing = sizing,
             onClick = { onEpisodeClick?.invoke(episode) },
             onLongPress = { onEpisodeLongPress?.invoke(episode) },
@@ -523,7 +522,7 @@ private fun SeasonTextChipScrollRow(
                     .clip(RoundedCornerShape(sizing.seasonChipRadius))
                     .background(
                         if (isSelected) {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            backdropControlColor(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                         } else {
                             Color.Transparent
                         },
@@ -1171,26 +1170,6 @@ private fun ImdbEpisodeRatingBadge(
     }
 }
 
-/** Zangetsu-style "CONTINUE" pill on the episode the viewer is in the middle of. */
-@Composable
-private fun EpisodeContinueBadge(modifier: Modifier = Modifier) {
-    val accent = MaterialTheme.colorScheme.primary
-    val shape = RoundedCornerShape(percent = 50)
-    Text(
-        text = stringResource(Res.string.action_continue).uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-        ),
-        color = accent,
-        modifier = modifier
-            .clip(shape)
-            .background(accent.copy(alpha = 0.14f))
-            .border(1.dp, accent.copy(alpha = 0.45f), shape)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-    )
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EpisodeListCard(
@@ -1201,7 +1180,6 @@ private fun EpisodeListCard(
     isWatched: Boolean,
     episodeRatingsVisibility: EpisodeRatingsVisibility,
     blurUnwatchedEpisodes: Boolean,
-    isCurrentEpisode: Boolean = false,
     sizing: SeriesContentSizing,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
@@ -1315,25 +1293,16 @@ private fun EpisodeListCard(
                         lineHeight = sizing.titleLineHeight,
                         letterSpacing = 0.sp,
                     ),
-                    // Zangetsu touch: the episode you're in the middle of glows
-                    // in the accent colour instead of the neutral surface tone.
-                    color = if (isCurrentEpisode) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = sizing.titleMaxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                if (formattedDate != null || ratingLabel != null || isCurrentEpisode) {
+                if (formattedDate != null || ratingLabel != null) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (isCurrentEpisode) {
-                            EpisodeContinueBadge()
-                        }
                         formattedDate?.let { date ->
                             Text(
                                 text = date,

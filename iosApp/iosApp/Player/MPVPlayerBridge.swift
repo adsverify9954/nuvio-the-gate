@@ -170,6 +170,9 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
     }
     func selectSubtitleTrack(trackId: Int32) { playerVC?.selectSubtitle(Int(trackId)) }
     func setSubtitleUrl(url: String) { playerVC?.addSubtitleUrl(url) }
+    func replaceExternalSubtitle(replacedUrl: String, path: String) {
+        playerVC?.replaceExternalSubtitle(replacedUrl, path: path)
+    }
     func clearExternalSubtitle() { playerVC?.removeExternalSubtitles() }
     func clearExternalSubtitleAndSelect(trackId: Int32) { playerVC?.removeExternalSubtitlesAndSelect(Int(trackId)) }
     func setSubtitleDelayMs(delayMs: Int32) { playerVC?.setSubtitleDelayMs(Int(delayMs)) }
@@ -203,13 +206,12 @@ final class MPVPlayerBridgeImpl: NSObject, NuvioPlayerBridge {
 
     // State - refreshes position from mpv on each call (polled from Kotlin every 250ms)
     func getIsLoading() -> Bool { playerVC?.refreshPlaybackState(); return playerVC?.isPlayerLoading ?? true }
+    func getIsOpening() -> Bool { !(playerVC?.isFileLoaded ?? false) }
     func getIsPlaying() -> Bool { return playerVC?.isPlayerPlaying ?? false }
     func getIsEnded() -> Bool { return playerVC?.isPlayerEnded ?? false }
     func getDurationMs() -> Int64 { return playerVC?.durationMs ?? 0 }
     func getPositionMs() -> Int64 { return playerVC?.positionMs ?? 0 }
     func getBufferedMs() -> Int64 { return playerVC?.bufferedMs ?? 0 }
-    func getCacheSpeedBytesPerSecond() -> Int64 { return playerVC?.cacheSpeedBytesPerSecond ?? 0 }
-    func getIsCacheIdle() -> Bool { return playerVC?.isCacheIdle ?? true }
     func getPlaybackSpeed() -> Float { playerVC?.currentSpeed ?? 1.0 }
     func getErrorMessage() -> String { playerVC?.currentErrorMessage ?? "" }
     func getProperty(name: String) -> String { playerVC?.getString(name) ?? "" }
@@ -295,7 +297,7 @@ final class MPVPlayerViewController: UIViewController {
     /// mpv's sub-add needs a loaded file. An add-on subtitle selected before that (Nuvio restores
     /// the remembered one as soon as add-ons answer, often while the stream still opens) waits here.
     private var pendingSubtitleUrl: String?
-    private var isFileLoaded = false
+    private(set) var isFileLoaded = false
     private var pendingLoadRetryWorkItem: DispatchWorkItem?
     private var mpv: OpaquePointer?
     private var cachedNowPlayingMetadata: CachedNowPlayingMetadata?
@@ -325,8 +327,6 @@ final class MPVPlayerViewController: UIViewController {
     var durationMs: Int64 = 0
     var positionMs: Int64 = 0
     var bufferedMs: Int64 = 0
-    var cacheSpeedBytesPerSecond: Int64 = 0
-    var isCacheIdle: Bool = true
     var currentSpeed: Float = 1.0
     var currentErrorMessage: String {
         errorStateLock.lock()
@@ -877,6 +877,45 @@ final class MPVPlayerViewController: UIViewController {
         command("sub-add", args: [url, "select"])
     }
 
+    /// Loads the local file at `path` in place of the external track loaded from `replacedUrl`,
+    /// under that track's title and language, then drops the replaced track and earlier AutoSync
+    /// copies (files named `autosync_*` next to `path`).
+    func replaceExternalSubtitle(_ replacedUrl: String, path: String) {
+        guard mpv != nil, isFileLoaded else {
+            pendingSubtitleUrl = path
+            return
+        }
+        var title: String?
+        var language: String?
+        let count = getInt("track-list/count")
+        for i in stride(from: count - 1, through: 0, by: -1) {
+            guard (getString("track-list/\(i)/type") ?? "") == "sub",
+                  getFlag("track-list/\(i)/external"),
+                  getString("track-list/\(i)/external-filename") == replacedUrl else { continue }
+            title = getString("track-list/\(i)/title") ?? (replacedUrl as NSString).lastPathComponent
+            language = getString("track-list/\(i)/lang")
+            break
+        }
+        var args: [String?] = [path, "cached"]
+        if let title {
+            args.append(title)
+            if let language { args.append(language) }
+        }
+        command("sub-add", args: args, checkForErrors: false)
+
+        let earlierCopyPrefix = (path as NSString).deletingLastPathComponent + "/autosync_"
+        let updatedCount = getInt("track-list/count")
+        for i in stride(from: updatedCount - 1, through: 0, by: -1) {
+            guard (getString("track-list/\(i)/type") ?? "") == "sub",
+                  getFlag("track-list/\(i)/external"),
+                  let filename = getString("track-list/\(i)/external-filename"),
+                  filename != path,
+                  filename == replacedUrl || filename.hasPrefix(earlierCopyPrefix) else { continue }
+            let id = getInt("track-list/\(i)/id")
+            command("sub-remove", args: ["\(id)"], checkForErrors: false)
+        }
+    }
+
     private func addSubtitle(_ subtitle: PluginSubtitle, mode: String) {
         guard mpv != nil else { return }
         let subtitleHeaders = sanitizeRequestHeaders(subtitle.headers ?? [:])
@@ -1031,8 +1070,6 @@ final class MPVPlayerViewController: UIViewController {
         let idle = getFlag("core-idle")
         let seeking = getFlag("seeking")
         let bufferingCache = getFlag("paused-for-cache")
-        let cacheSpeed = getDouble("cache-speed")
-        let cacheIdle = getFlag("demuxer-cache-idle")
 
         isPlayerLoading = (idle && !paused && !eofReached) || seeking || bufferingCache
         isPlayerPlaying = !paused && !idle && !eofReached
@@ -1040,8 +1077,6 @@ final class MPVPlayerViewController: UIViewController {
         durationMs = Int64(duration * 1000)
         positionMs = Int64(max(position, 0) * 1000)
         bufferedMs = Int64(max(position + cached, 0) * 1000)
-        cacheSpeedBytesPerSecond = Int64(max(cacheSpeed, 0))
-        isCacheIdle = cacheIdle
         currentSpeed = Float(speed > 0 ? speed : 1.0)
 
         let shouldPublishNowPlayingState = !isPlayerLoading || isPlayerPlaying || durationMs > 0 || positionMs > 0

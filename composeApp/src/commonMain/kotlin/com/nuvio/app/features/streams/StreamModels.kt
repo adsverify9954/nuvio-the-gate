@@ -33,6 +33,8 @@ data class StreamItem(
     val externalSubtitles: List<StreamSubtitle> = emptyList(),
     val badges: List<StreamBadge> = emptyList(),
     val serverTarget: ServerPlaybackTarget? = null,
+    /** True when [url] was produced by Nuvio's own debrid resolver, not returned by the add-on. */
+    val debridResolved: Boolean = false,
 ) {
     val streamLabel: String
         get() = name?.takeIf { it.isNotBlank() } ?: "Stream"
@@ -210,7 +212,6 @@ data class StreamBehaviorHints(
     val videoSize: Long? = null,
     val filename: String? = null,
     val proxyHeaders: StreamProxyHeaders? = null,
-    val theGateWebview: Boolean = false,
 )
 
 data class StreamProxyHeaders(

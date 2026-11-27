@@ -16,9 +16,6 @@ internal fun LazyListScope.settingsRootContent(
     onWatchPartyClick: (() -> Unit)? = null,
     category: SettingsCategory? = null,
 ) {
-    if (category == null || category == SettingsCategory.Watch) {
-        nuvioReshapedRootSection(isTablet) { onPageClick(SettingsPage.NuvioReshaped) }
-    }
     SettingsCategory.entries.filter { category == null || it == category }.forEach { group ->
         item(key = group.name) {
             SettingsGroup(isTablet = isTablet) {

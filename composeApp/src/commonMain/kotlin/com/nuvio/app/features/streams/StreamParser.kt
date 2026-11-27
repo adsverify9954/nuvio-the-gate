@@ -39,9 +39,6 @@ object StreamParser {
             val proxyHeaders = hintsObj
                 ?.objectValue("proxyHeaders")
                 ?.toProxyHeaders()
-            val theGateWebview = (obj.boolean("webview") ?: false) ||
-                (hintsObj?.boolean("webview") ?: false) ||
-                obj.string("host").equals("abyss", ignoreCase = true)
             StreamItem(
                 name = obj.string("name"),
                 title = obj.string("title"),
@@ -64,7 +61,6 @@ object StreamParser {
                     videoSize = hintsObj?.long("videoSize"),
                     filename = hintsObj?.string("filename"),
                     proxyHeaders = proxyHeaders,
-                    theGateWebview = theGateWebview,
                 ),
             )
         }

@@ -1,7 +1,5 @@
 package com.nuvio.app.features.autosync
 
-import android.os.SystemClock
-import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.extractor.text.CuesWithTiming
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
@@ -14,12 +12,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.roundToLong
 
-private const val TAG = "NuvioAutoSyncSidecar"
 private const val SIDECAR_WAIT_MS = 15_000L
 private const val SIDECAR_WAIT_POLL_MS = 25L
-private const val BOUNDARY_TOLERANCE_MS = 500L
 private const val DIRECT_INDEX_TOLERANCE_MS = 50L
 
 internal suspend fun applyAutoSyncSidecarTimeline(
@@ -30,8 +25,6 @@ internal suspend fun applyAutoSyncSidecarTimeline(
     if (!timeline.confident || sidecar.activeSidecarSubtitleKey != url) return false
     val expectedGeneration = sidecar.currentGenerationFor(url) ?: return false
 
-    val totalStarted = SystemClock.elapsedRealtime()
-    val waitStarted = SystemClock.elapsedRealtime()
     val current = sidecar.sidecarTimedCues.takeIf { it.isNotEmpty() } ?: withTimeoutOrNull(
         SIDECAR_WAIT_MS,
     ) {
@@ -48,27 +41,17 @@ internal suspend fun applyAutoSyncSidecarTimeline(
                 it.isNotEmpty()
         }
     } ?: return false
-    val waitMs = SystemClock.elapsedRealtime() - waitStarted
 
-    val retimeStarted = SystemClock.elapsedRealtime()
-    val retimed = withContext(Dispatchers.Default) {
+    val retimed = withContext(autoSyncCpuDispatcher) {
         retimeSidecarTimedCues(current, timeline)
     }
-    val retimeMs = SystemClock.elapsedRealtime() - retimeStarted
 
-    val commitStarted = SystemClock.elapsedRealtime()
     val committed = sidecar.commitPreparedSidecarSubtitle(
         expectedCurrentUrl = url,
         newUrl = url,
         cues = retimed,
         expectedGeneration = expectedGeneration,
     )
-    val commitMs = SystemClock.elapsedRealtime() - commitStarted
-    AutoSyncDebugLog.info {
-        "APPLY_TIMING mode=same-url wait=${waitMs}ms parse=0ms " +
-            "retime=${retimeMs}ms commit=${commitMs}ms " +
-            "total=${SystemClock.elapsedRealtime() - totalStarted}ms"
-    }
     return committed
 }
 
@@ -87,46 +70,24 @@ internal suspend fun replaceAutoSyncSidecarSubtitle(
     val expectedGeneration =
         sidecar.currentGenerationFor(expectedCurrentUrl) ?: return false
 
-    val totalStarted = SystemClock.elapsedRealtime()
-    var bodyMs = 0L
-    var parseMs = 0L
-    var retimeMs = 0L
-    var parsedCueCount = 0
     val retimed = try {
-        val bodyStarted = SystemClock.elapsedRealtime()
         val body = rawBody ?: withContext(Dispatchers.IO) {
             httpGetTextWithHeaders(url = url, headers = headers)
         }
-        bodyMs = SystemClock.elapsedRealtime() - bodyStarted
-        if (rawBody != null) {
-            Log.d(TAG, "replacement using AutoSync cached body url=$url")
-        }
-
-        val parseStarted = SystemClock.elapsedRealtime()
-        val parsed = withContext(Dispatchers.Default) {
+        val parsed = withContext(autoSyncCpuDispatcher) {
             parseSidecarTimedCuesRobust(body, url).cues
         }
-        parseMs = SystemClock.elapsedRealtime() - parseStarted
-        parsedCueCount = parsed.size
         if (parsed.isEmpty()) {
-            Log.w(TAG, "replacement parse empty url=$url; keeping $expectedCurrentUrl")
             return false
         }
 
-        val retimeStarted = SystemClock.elapsedRealtime()
-        val prepared = withContext(Dispatchers.Default) {
+        val prepared = withContext(autoSyncCpuDispatcher) {
             retimeSidecarTimedCues(parsed, timeline)
         }
-        retimeMs = SystemClock.elapsedRealtime() - retimeStarted
         prepared
     } catch (cancel: CancellationException) {
         throw cancel
-    } catch (error: Exception) {
-        Log.w(
-            TAG,
-            "replacement preparation failed url=$url: ${error.message}; " +
-                "keeping $expectedCurrentUrl",
-        )
+    } catch (_: Exception) {
         return false
     }
 
@@ -138,20 +99,12 @@ internal suspend fun replaceAutoSyncSidecarSubtitle(
         return false
     }
 
-    val commitStarted = SystemClock.elapsedRealtime()
     val committed = sidecar.commitPreparedSidecarSubtitle(
         expectedCurrentUrl = expectedCurrentUrl,
         newUrl = url,
         cues = retimed,
         expectedGeneration = expectedGeneration,
     )
-    val commitMs = SystemClock.elapsedRealtime() - commitStarted
-    AutoSyncDebugLog.info {
-        "APPLY_TIMING mode=replacement bodySource=${if (rawBody != null) "cached" else "network"} " +
-            "body=${bodyMs}ms parse=${parseMs}ms parsedCues=$parsedCueCount " +
-            "retime=${retimeMs}ms commit=${commitMs}ms " +
-            "total=${SystemClock.elapsedRealtime() - totalStarted}ms"
-    }
     return committed
 }
 
@@ -229,67 +182,15 @@ private fun clampIntroducedSidecarOverlaps(
     }
 }
 
-private data class TimingBoundary(
-    val originalMs: Long,
-    val retimedMs: Long,
-)
-
 private fun retimeSidecarTimedCues(
     source: List<CuesWithTiming>,
     timeline: AutoSyncTimelineRetimeResult,
 ): List<CuesWithTiming> {
     retimeSidecarTimedCuesByIndexIfCompatible(source, timeline)?.let { direct ->
-        Log.d(TAG, "retime mapped sidecar=${source.size} mapping=direct-index")
         return direct
     }
 
-    val startBoundaries = ArrayList<TimingBoundary>(timeline.cues.size)
-    val endBoundaries = ArrayList<TimingBoundary>(timeline.cues.size)
-    timeline.cues.forEach { cue ->
-        startBoundaries += TimingBoundary(cue.originalStartTimeMs, cue.startTimeMs)
-        endBoundaries += TimingBoundary(cue.originalEndTimeMs, cue.endTimeMs)
-    }
-    startBoundaries.sortBy { it.originalMs }
-    endBoundaries.sortBy { it.originalMs }
-
-    var boundaryMapped = 0
-    var affineFallback = 0
-
-    fun mapTime(originalMs: Long, boundaries: List<TimingBoundary>): Long {
-        if (boundaries.isNotEmpty()) {
-            var low = 0
-            var high = boundaries.size
-            while (low < high) {
-                val mid = (low + high) ushr 1
-                if (boundaries[mid].originalMs < originalMs) low = mid + 1 else high = mid
-            }
-
-            val first = (low - 2).coerceAtLeast(0)
-            val last = (low + 2).coerceAtMost(boundaries.lastIndex)
-            var best: TimingBoundary? = null
-            var bestError = Long.MAX_VALUE
-            if (first <= last) {
-                for (index in first..last) {
-                    val candidate = boundaries[index]
-                    val error = kotlin.math.abs(candidate.originalMs - originalMs)
-                    if (error < bestError) {
-                        best = candidate
-                        bestError = error
-                    }
-                }
-            }
-            if (best != null && bestError <= BOUNDARY_TOLERANCE_MS) {
-                boundaryMapped++
-                return best.retimedMs.coerceAtLeast(0L)
-            }
-        }
-
-        affineFallback++
-        return (
-            originalMs.toDouble() * timeline.alignmentScale +
-                timeline.alignmentInterceptMs
-            ).roundToLong().coerceAtLeast(0L)
-    }
+    val mapper = AutoSyncTimelineTimeMapper(timeline)
 
     val out = ArrayList<CuesWithTiming>(source.size)
     source.forEach { entry ->
@@ -306,8 +207,8 @@ private fun retimeSidecarTimedCues(
             else -> originalStartMs + 1L
         }.coerceAtLeast(originalStartMs + 1L)
 
-        val startMs = mapTime(originalStartMs, startBoundaries)
-        val endMs = mapTime(originalEndMs, endBoundaries).coerceAtLeast(startMs + 1L)
+        val startMs = mapper.mapStartMs(originalStartMs)
+        val endMs = mapper.mapEndMs(originalEndMs).coerceAtLeast(startMs + 1L)
         out += CuesWithTiming(
             entry.cues,
             startMs * 1_000L,
@@ -317,10 +218,5 @@ private fun retimeSidecarTimedCues(
 
     clampIntroducedSidecarOverlaps(source, out)
 
-    Log.d(
-        TAG,
-        "retime mapped sidecar=${source.size} " +
-            "boundaryMapped=$boundaryMapped affineFallback=$affineFallback",
-    )
     return out
 }

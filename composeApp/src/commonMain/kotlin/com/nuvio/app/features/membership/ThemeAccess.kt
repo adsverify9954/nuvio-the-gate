@@ -11,12 +11,8 @@ private val supporterThemes = linkedMapOf(
     AppTheme.GRAPHITE to CosmeticEntitlement.GRAPHITE_THEME,
 )
 
-// Netflix is the house look: it leads the picker and is the fallback theme.
-private val standardThemes = listOf(AppTheme.ZANGETSU, AppTheme.WHITE) + AppTheme.entries.filterNot {
-    it == AppTheme.WHITE ||
-        it == AppTheme.CUSTOM ||
-        it == AppTheme.ZANGETSU ||
-        it in supporterThemes
+private val standardThemes = listOf(AppTheme.WHITE) + AppTheme.entries.filterNot {
+    it == AppTheme.WHITE || it == AppTheme.CUSTOM || it in supporterThemes
 }
 
 fun availableAppThemes(entitlements: CosmeticEntitlements): List<AppTheme> {
@@ -36,9 +32,9 @@ fun resolveAppTheme(
             .filterValues(entitlements::includes)
             .keys
             .firstOrNull()
-            ?: AppTheme.ZANGETSU
+            ?: AppTheme.WHITE
     }
-    return selectedTheme.takeIf { it in availableAppThemes(entitlements) } ?: AppTheme.ZANGETSU
+    return selectedTheme.takeIf { it in availableAppThemes(entitlements) } ?: AppTheme.WHITE
 }
 
 fun resolveCustomThemeColors(colors: CustomThemeColors, memberTier: MemberTier?): CustomThemeColors =

@@ -3,7 +3,6 @@ package com.nuvio.app.core.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.getValue
@@ -72,7 +71,6 @@ internal fun Modifier.posterCardClickable(
     onLongClick: (() -> Unit)?,
     zoomImageUrl: String? = null,
     zoomCornerRadius: Dp = NuvioTokens.Radius.poster,
-    interactionSource: MutableInteractionSource? = null,
 ): Modifier {
     val graphicsContext = LocalGraphicsContext.current
     val source = remember(graphicsContext, zoomImageUrl) { PosterLiftSource(graphicsContext) }
@@ -95,7 +93,7 @@ internal fun Modifier.posterCardClickable(
     if (onClick == null && onLongClick == null) return posterModifier
     return posterModifier
         .combinedClickable(
-            interactionSource = interactionSource,
+            interactionSource = null,
             indication = if (onPosterClickAnchor == null) LocalIndication.current else null,
             onClick = {
                 if (onClick != null) {

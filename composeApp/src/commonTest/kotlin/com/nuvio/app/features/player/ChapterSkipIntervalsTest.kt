@@ -1,7 +1,5 @@
 package com.nuvio.app.features.player
 
-import com.nuvio.app.features.player.skip.internalSkipAction
-import kotlin.test.assertNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -87,24 +85,24 @@ class ChapterSkipIntervalsTest {
     }
 
     @Test
-    fun postCreditsSceneIsMarkedButNeverOfferedAsASkip() {
-        val chapters = chapters(0L to "Movie", 5_500_000L to "Credits", 5_700_000L to "Post-Credits Scene")
+    fun postCreditsSceneChapterIsKeptAsSkipTargetNotSkipSegment() {
+        val chapters = chapters(0L to "Movie", 5_520_000L to "Credits", 5_700_000L to "Post-Credits Scene")
         val intervals = ChapterSkipIntervals.fromChapters(chapters, 6_000_000L)
-        val scene = intervals.single { it.startTime == 5_700.0 }
-        assertEquals("post-credits", scene.type)
-        assertNull(scene.internalSkipAction(intervals, 6_000_000L))
-        val credits = intervals.single { it.type == "outro" }
-        assertEquals(5_700_000L, credits.internalSkipAction(intervals, 6_000_000L)!!.targetMs)
+        // The scene is exposed as a post-credits target (skipping the credits lands on it),
+        // never as a skippable segment itself.
+        assertTrue(intervals.filter { it.startTime == 5_700.0 }.all { it.type == "post-credits" })
+        assertTrue(intervals.any { it.type == "post-credits" && it.startTime == 5_700.0 })
+        // 180s of credits, within the 240s limit.
+        assertTrue(intervals.any { it.type == "outro" && it.startTime == 5_520.0 && it.endTime == 5_700.0 })
     }
 
     @Test
-    fun midCreditsSceneIsMarkedButNeverOfferedAsASkip() {
+    fun midCreditsSceneChapterIsKeptAsSkipTargetNotSkipSegment() {
         val chapters = chapters(0L to "Movie", 5_400_000L to "Credits", 5_600_000L to "Mid-Credits Scene", 5_700_000L to "More Credits")
         val intervals = ChapterSkipIntervals.fromChapters(chapters, 6_000_000L)
-        val scene = intervals.single { it.startTime == 5_600.0 }
-        assertEquals("post-credits", scene.type)
-        assertNull(scene.internalSkipAction(intervals, 6_000_000L))
-        assertEquals(5_600_000L, intervals.single { it.type == "outro" }.internalSkipAction(intervals, 6_000_000L)!!.targetMs)
+        assertTrue(intervals.filter { it.startTime == 5_600.0 }.all { it.type == "post-credits" })
+        assertTrue(intervals.any { it.type == "post-credits" && it.startTime == 5_600.0 })
+        assertTrue(intervals.any { it.type == "outro" && it.startTime == 5_400.0 && it.endTime == 5_600.0 })
     }
 
     @Test

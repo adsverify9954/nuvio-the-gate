@@ -11,9 +11,6 @@ actual object CurrentDateProvider {
         return formatter.stringFromDate(NSDate())
     }
 
-    actual fun nowEpochMs(): Long =
-        (NSDate().timeIntervalSince1970 * 1_000.0).toLong()
-
     actual fun localStartOfDayEpochMs(isoDate: String): Long? {
         val formatter = NSDateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"

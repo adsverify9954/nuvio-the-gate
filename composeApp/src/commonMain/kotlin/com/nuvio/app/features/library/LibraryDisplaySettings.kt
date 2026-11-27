@@ -27,7 +27,6 @@ enum class LibrarySortOption {
 data class LibraryDisplaySettingsUiState(
     val layoutMode: LibraryLayoutMode = LibraryLayoutMode.HORIZONTAL,
     val sortOption: LibrarySortOption = LibrarySortOption.DEFAULT,
-    val calendarEnabled: Boolean = false,
 )
 
 object LibraryDisplaySettingsRepository {
@@ -61,13 +60,6 @@ object LibraryDisplaySettingsRepository {
         ensureLoaded()
         if (_uiState.value.sortOption == sortOption) return
         _uiState.value = _uiState.value.copy(sortOption = sortOption)
-        persist()
-    }
-
-    fun setCalendarEnabled(enabled: Boolean) {
-        ensureLoaded()
-        if (_uiState.value.calendarEnabled == enabled) return
-        _uiState.value = _uiState.value.copy(calendarEnabled = enabled)
         persist()
     }
 
@@ -231,7 +223,6 @@ internal fun encodeLibraryDisplaySettings(state: LibraryDisplaySettingsUiState):
         StoredLibraryDisplaySettings(
             layoutMode = state.layoutMode.name,
             sortOption = state.sortOption.name,
-            calendarEnabled = state.calendarEnabled,
         ),
     )
 
@@ -250,7 +241,6 @@ internal fun decodeLibraryDisplaySettings(payload: String?): LibraryDisplaySetti
         sortOption = stored?.sortOption
             ?.let { value -> LibrarySortOption.entries.firstOrNull { it.name == value } }
             ?: LibrarySortOption.DEFAULT,
-        calendarEnabled = stored?.calendarEnabled ?: false,
     )
 }
 
@@ -288,7 +278,6 @@ internal val LibrarySourceMode.isRemoteTrackingSource: Boolean
 private data class StoredLibraryDisplaySettings(
     @SerialName("layout_mode") val layoutMode: String = LibraryLayoutMode.HORIZONTAL.name,
     @SerialName("sort_option") val sortOption: String = LibrarySortOption.DEFAULT.name,
-    @SerialName("calendar_enabled") val calendarEnabled: Boolean = false,
 )
 
 private fun libraryProviderOrderComparator(ranks: Map<String, Int>): Comparator<LibraryItem> =

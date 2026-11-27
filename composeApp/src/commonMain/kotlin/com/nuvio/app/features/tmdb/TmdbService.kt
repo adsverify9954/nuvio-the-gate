@@ -97,39 +97,6 @@ object TmdbService {
         return resultId
     }
 
-    /**
-     * Live title suggestions for the search field (Zangetsu-style type-ahead).
-     * Metadata-only autocomplete — never a full multi-source search — and it
-     * never throws: a failing request simply yields no suggestions.
-     */
-    suspend fun searchTitles(query: String, limit: Int = 8): List<String> {
-        val normalized = query.trim()
-        if (normalized.length < 2) return emptyList()
-        val apiKey = TmdbSettingsRepository.effectiveApiKey()
-        val body = fetch<TmdbSearchMultiResponse>(
-            endpoint = "search/multi",
-            apiKey = apiKey,
-            query = mapOf(
-                "query" to normalized,
-                "include_adult" to "false",
-            ),
-        ) ?: return emptyList()
-        return body.results.asSequence()
-            .map { result ->
-                val title = result.title?.takeIf { it.isNotBlank() }
-                    ?: result.name?.takeIf { it.isNotBlank() }
-                    ?: return@map null
-                val year = (result.releaseDate ?: result.firstAirDate)
-                    ?.take(4)
-                    ?.takeIf { it.length == 4 }
-                if (year == null) title else "$title ($year)"
-            }
-            .filterNotNull()
-            .distinctBy { it.substringBefore(" (").lowercase() }
-            .take(limit)
-            .toList()
-    }
-
     private suspend inline fun <reified T> fetch(
         endpoint: String,
         apiKey: String,
@@ -186,19 +153,4 @@ private data class TmdbExternalResult(
 @Serializable
 private data class TmdbExternalIdsResponse(
     @SerialName("imdb_id") val imdbId: String? = null,
-)
-
-@Serializable
-private data class TmdbSearchMultiResponse(
-    @SerialName("results") val results: List<TmdbSearchResult> = emptyList(),
-)
-
-@Serializable
-private data class TmdbSearchResult(
-    val id: Int = 0,
-    val title: String? = null,
-    val name: String? = null,
-    @SerialName("media_type") val mediaType: String? = null,
-    @SerialName("release_date") val releaseDate: String? = null,
-    @SerialName("first_air_date") val firstAirDate: String? = null,
 )

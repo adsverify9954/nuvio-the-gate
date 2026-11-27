@@ -14,7 +14,6 @@ import com.nuvio.app.features.details.MetaScreenSettingsUiState
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.p2p.P2pSettingsUiState
 import com.nuvio.app.features.p2p.P2pStreamingState
-import com.nuvio.app.features.player.seekpreview.SeekPreviewSession
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.SkipInterval
 import com.nuvio.app.features.streams.StreamsUiState
@@ -69,7 +68,6 @@ internal class PlayerScreenRuntime(
     val parentMetaId: String get() = args.parentMetaId
     val parentMetaType: String get() = args.parentMetaType
     val providerAddonId: String? get() = args.providerAddonId
-    val isReshapedLiveTv: Boolean get() = contentType == "live-tv" && providerAddonId == "reshaped-live-tv"
     val torrentInfoHash: String? get() = args.torrentInfoHash
     val torrentFileIdx: Int? get() = args.torrentFileIdx
     val torrentFilename: String? get() = args.torrentFilename
@@ -78,7 +76,6 @@ internal class PlayerScreenRuntime(
     val initialProgressFraction: Float? get() = args.initialProgressFraction
     var externalSubtitles by mutableStateOf(args.externalSubtitles)
     val isSeries: Boolean get() = parentMetaType == "series"
-    var showReshapedLiveTvChannelsPanel by mutableStateOf(false)
 
     lateinit var scope: CoroutineScope
     lateinit var hapticFeedback: HapticFeedback
@@ -101,6 +98,7 @@ internal class PlayerScreenRuntime(
     var sliderEdgePadding: Dp = 0.dp
     var overlayBottomPadding: Dp = 0.dp
     var sideGestureSystemEdgeExclusionPx: Float = 0f
+    var horizontalSeekSystemEdgeExclusionPx: Float = 0f
     var resizeModeFitLabel: String = ""
     var resizeModeFillLabel: String = ""
     var resizeModeZoomLabel: String = ""
@@ -161,7 +159,6 @@ internal class PlayerScreenRuntime(
     var errorMessage by mutableStateOf<String?>(null)
     var isScrubbingTimeline by mutableStateOf(false)
     var scrubbingPositionMs by mutableStateOf<Long?>(null)
-    val seekPreview = SeekPreviewSession()
     var pausedOverlayVisible by mutableStateOf(false)
     var gestureFeedback by mutableStateOf<GestureFeedbackState?>(null)
     var liveGestureFeedback by mutableStateOf<GestureFeedbackState?>(null)
@@ -226,6 +223,13 @@ internal class PlayerScreenRuntime(
     var pendingP2pSwitch by mutableStateOf<PendingPlayerP2pSwitch?>(null)
     var credentialRefreshJob by mutableStateOf<Job?>(null)
     var credentialRefreshAttemptedSourceUrl by mutableStateOf<String?>(null)
+    /** URL opened from the reuse-last-link cache; it is refreshed after a playback error even without a token. */
+    var linkCacheSourceUrl: String? = args.sourceUrl.takeIf { args.sourceFromLinkCache && it.isNotBlank() }
+    /** URL picked by auto source selection; only this source falls back to the next match on failure. */
+    var autoSelectedSourceUrl: String? = args.sourceUrl.takeIf { args.sourceAutoSelected && it.isNotBlank() }
+    var sourceFallbackAttempts = 0
+    val sourceFallbackTriedKeys = mutableSetOf<String>()
+    var sourceFallbackJob: Job? = null
 
     var showAudioModal by mutableStateOf(false)
     var showSubtitleModal by mutableStateOf(false)
@@ -235,8 +239,7 @@ internal class PlayerScreenRuntime(
     var showPartyChat by mutableStateOf(false)
     val isPanelOpen: Boolean
         get() = showAudioModal || showSubtitleModal || showVideoSettingsModal || showStreamInfo ||
-            showPartyPanel || showSourcesPanel || showEpisodesPanel || showChaptersPanel ||
-            showReshapedLiveTvChannelsPanel || seekPreview.showSyncPanel || showSubmitIntroModal
+            showPartyPanel || showSourcesPanel || showEpisodesPanel || showSubmitIntroModal
     var partyBehind by mutableStateOf(false)
     var partyBehindMs by mutableStateOf<Long?>(null)
     var partyRateNudge: Float? = null
@@ -248,6 +251,7 @@ internal class PlayerScreenRuntime(
     var playbackEngineOverride by mutableStateOf<AndroidPlaybackEngine?>(null)
     var engineFailoverTriggered by mutableStateOf(false)
     var engineFailoverDisarmed by mutableStateOf(false)
+    var engineFailoverSourceIdentity: String? = null
     var pendingEngineSwitchTrackPreference by mutableStateOf<PendingEngineSwitchTrackPreference?>(null)
     var audioTracks by mutableStateOf<List<AudioTrack>>(emptyList())
     var serverAudioTracks by mutableStateOf<List<AudioTrack>>(emptyList())
@@ -268,9 +272,17 @@ internal class PlayerScreenRuntime(
     var autoFetchedAddonSubtitlesForKey by mutableStateOf<String?>(null)
     var trackPreferenceRestoreApplied by mutableStateOf(false)
     var subtitleDelayMs by mutableStateOf(0)
+    var audioDelayMs by mutableStateOf(0)
+    /** Output the audio delay is remembered for; null while that setting is off. */
+    var audioOutputKey: String? = null
+    var audioAmplificationDb by mutableStateOf(0)
+    var centerMixLevelDb by mutableStateOf(0)
+    var centerMixAvailable by mutableStateOf(false)
     var subtitleAutoSyncState by mutableStateOf(SubtitleAutoSyncUiState())
 
     var lastSyncedSettingsResizeMode: PlayerResizeMode? = null
     var lastResetPlaybackIdentity: PlaybackKey? = null
+    var lastResetSourcePlaybackIdentity: PlaybackKey? = null
+    var lastAddonSubtitleSourceIdentity: PlaybackKey? = null
     var lastResetVideoIdentity: String? = null
 }

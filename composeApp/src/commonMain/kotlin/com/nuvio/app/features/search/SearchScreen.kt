@@ -1,9 +1,7 @@
 package com.nuvio.app.features.search
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,14 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,8 +34,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -50,7 +44,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.NuvioInputField
-import com.nuvio.app.core.ui.NuvioMotion
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
@@ -138,19 +131,6 @@ fun SearchScreen(
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var lastRequestedQuery by rememberSaveable { mutableStateOf<String?>(null) }
-    // Zangetsu-style live type-ahead suggestions.
-    val suggestions by SearchRepository.suggestions.collectAsStateWithLifecycle()
-    val visibleSuggestions = remember(suggestions, query) {
-        val normalized = query.trim()
-        suggestions
-            .filter { candidate ->
-                candidate.isNotBlank() &&
-                    candidate.trim().equals(normalized, ignoreCase = true).not()
-            }
-            .distinctBy { it.trim().lowercase() }
-            .take(6)
-    }
-    val showSuggestions = isSearchFocused && query.isNotBlank() && visibleSuggestions.isNotEmpty()
     var observedOfflineState by remember { mutableStateOf(false) }
     val discoverInFocus by remember(query, listState) {
         derivedStateOf {
@@ -181,11 +161,7 @@ fun SearchScreen(
         if (normalizedQuery.isBlank()) {
             lastRequestedQuery = null
             SearchRepository.clear()
-            SearchRepository.clearSuggestions()
         } else {
-            // Type-ahead suggestions run on their own (short) debounce so the
-            // dropdown fills in before the full search round-trip completes.
-            SearchRepository.suggest(normalizedQuery)
             delay(350)
             lastRequestedQuery = normalizedQuery
             SearchRepository.search(
@@ -315,20 +291,6 @@ fun SearchScreen(
                     }
                     androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(14.dp))
                 }
-            }
-        }
-
-        // Zangetsu-style type-ahead: the suggestions sit right under the search
-        // field (content area, so the keyboard never pushes them off-screen).
-        if (showSuggestions) {
-            item(key = "search_suggestions") {
-                SearchSuggestionPanel(
-                    suggestions = visibleSuggestions,
-                    onSuggestionClick = { suggestion ->
-                        query = suggestion
-                        SearchRepository.clearSuggestions()
-                    },
-                )
             }
         }
 
@@ -562,65 +524,6 @@ private fun SearchRecentRow(
                 contentDescription = stringResource(Res.string.compose_search_remove_recent_search),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
-}
-
-/**
- * Zangetsu-style type-ahead dropdown: as you type, matching titles float up
- * under the search field so the next query is one tap away.
- */
-@Composable
-private fun SearchSuggestionPanel(
-    suggestions: List<String>,
-    onSuggestionClick: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(NuvioTokens.Radius.xl)
-    val appear = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        appear.animateTo(1f, NuvioMotion.fade(NuvioMotion.Fast))
-    }
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                shape = shape,
-            )
-            .graphicsLayer {
-                val p = appear.value
-                alpha = p
-                translationY = (1f - p) * 10.dp.toPx()
-            },
-    ) {
-        suggestions.forEach { suggestion ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSuggestionClick(suggestion) }
-                    .padding(horizontal = 16.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = suggestion,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 }

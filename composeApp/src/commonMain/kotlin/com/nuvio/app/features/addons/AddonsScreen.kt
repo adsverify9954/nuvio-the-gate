@@ -45,7 +45,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.build.AppFeaturePolicy
-import com.nuvio.app.features.thegate.TheGateConfig
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.NuvioIconActionButton
 import com.nuvio.app.core.ui.NuvioInfoBadge
@@ -107,41 +106,39 @@ internal fun AddonsSettingsPageContent(
         SectionHeader(stringResource(Res.string.addons_section_overview))
         OverviewCard(overview = overview)
 
-        if (!TheGateConfig.ADDONS_LOCKED) {
-            SectionHeader(stringResource(Res.string.addons_section_add_addon))
-            AddAddonCard(
-                addonUrl = addonUrl,
-                formMessage = formMessage,
-                usePersonalMediaCopy = usePersonalMediaCopy,
-                onAddonUrlChange = {
-                    addonUrl = it
-                    formMessage = null
-                },
-                onAddClick = {
-                    val requestedUrl = addonUrl.trim()
-                    if (requestedUrl.isBlank()) {
-                        formMessage = enterAddonUrlMessage
-                        return@AddAddonCard
-                    }
+        SectionHeader(stringResource(Res.string.addons_section_add_addon))
+        AddAddonCard(
+            addonUrl = addonUrl,
+            formMessage = formMessage,
+            usePersonalMediaCopy = usePersonalMediaCopy,
+            onAddonUrlChange = {
+                addonUrl = it
+                formMessage = null
+            },
+            onAddClick = {
+                val requestedUrl = addonUrl.trim()
+                if (requestedUrl.isBlank()) {
+                    formMessage = enterAddonUrlMessage
+                    return@AddAddonCard
+                }
 
-                    formMessage = null
-                    installModalState = AddonInstallModalState.Checking
-                    coroutineScope.launch {
-                        val result = AddonRepository.addAddon(requestedUrl)
-                        installModalState = when (result) {
-                            is AddAddonResult.Success -> {
-                                addonUrl = ""
-                                AddonInstallModalState.Success(result.manifest.name)
-                            }
+                formMessage = null
+                installModalState = AddonInstallModalState.Checking
+                coroutineScope.launch {
+                    val result = AddonRepository.addAddon(requestedUrl)
+                    installModalState = when (result) {
+                        is AddAddonResult.Success -> {
+                            addonUrl = ""
+                            AddonInstallModalState.Success(result.manifest.name)
+                        }
 
-                            is AddAddonResult.Error -> {
-                                AddonInstallModalState.Error(result.message)
-                            }
+                        is AddAddonResult.Error -> {
+                            AddonInstallModalState.Error(result.message)
                         }
                     }
-                },
-            )
-        }
+                }
+            },
+        )
 
         SectionHeader(stringResource(Res.string.addons_section_installed))
         if (uiState.addons.isEmpty()) {
@@ -153,15 +150,14 @@ internal fun AddonsSettingsPageContent(
                 val behaviorHints = manifest?.behaviorHints
                 val showConfigureAction = behaviorHints?.configurable == true || behaviorHints?.configurationRequired == true
                 val configureUrl = addon.manifestUrl.toConfigureUrl()
-                val locked = TheGateConfig.ADDONS_LOCKED && addon.manifestUrl == TheGateConfig.RENDER_BACKEND_MANIFEST
                 InstalledAddonCard(
                     addon = addon,
-                    onMoveUpClick = if (index > 0 && !locked) {
+                    onMoveUpClick = if (index > 0) {
                         { AddonRepository.moveAddon(index, index - 1) }
                     } else {
                         null
                     },
-                    onMoveDownClick = if (index < lastIndex && !locked) {
+                    onMoveDownClick = if (index < lastIndex) {
                         { AddonRepository.moveAddon(index, index + 1) }
                     } else {
                         null
@@ -172,12 +168,8 @@ internal fun AddonsSettingsPageContent(
                             forceRefresh = true,
                         )
                     },
-                    onEnabledChange = if (locked) {
-                        null as ((Boolean) -> Unit)?
-                    } else {
-                        { enabled: Boolean ->
-                            AddonRepository.setAddonEnabled(addon.manifestUrl, enabled)
-                        }
+                    onEnabledChange = { enabled ->
+                        AddonRepository.setAddonEnabled(addon.manifestUrl, enabled)
                     },
                     onConfigureClick = if (showConfigureAction && !configureUrl.isNullOrBlank()) {
                         {
@@ -188,11 +180,7 @@ internal fun AddonsSettingsPageContent(
                     } else {
                         null
                     },
-                    onDeleteClick = if (locked) {
-                        null as (() -> Unit)?
-                    } else {
-                        { addonPendingDeletionUrl = addon.manifestUrl }
-                    },
+                    onDeleteClick = { addonPendingDeletionUrl = addon.manifestUrl },
                 )
             }
         }
@@ -425,9 +413,9 @@ private fun InstalledAddonCard(
     onMoveUpClick: (() -> Unit)?,
     onMoveDownClick: (() -> Unit)?,
     onRefreshClick: () -> Unit,
-    onEnabledChange: ((Boolean) -> Unit)?,
+    onEnabledChange: (Boolean) -> Unit,
     onConfigureClick: (() -> Unit)?,
-    onDeleteClick: (() -> Unit)?,
+    onDeleteClick: () -> Unit,
 ) {
     val manifest = addon.manifest
 
@@ -463,7 +451,6 @@ private fun InstalledAddonCard(
             Switch(
                 checked = addon.enabled,
                 onCheckedChange = onEnabledChange,
-                enabled = onEnabledChange != null,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                     checkedTrackColor = MaterialTheme.colorScheme.primary,
@@ -510,14 +497,12 @@ private fun InstalledAddonCard(
                     onClick = onConfigure,
                 )
             }
-            onDeleteClick?.let { onDelete ->
-                NuvioIconActionButton(
-                    icon = Icons.Rounded.Delete,
-                    contentDescription = stringResource(Res.string.addons_delete),
-                    tint = MaterialTheme.colorScheme.error,
-                    onClick = onDelete,
-                )
-            }
+            NuvioIconActionButton(
+                icon = Icons.Rounded.Delete,
+                contentDescription = stringResource(Res.string.addons_delete),
+                tint = MaterialTheme.colorScheme.error,
+                onClick = onDeleteClick,
+            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))

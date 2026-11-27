@@ -11,6 +11,7 @@ import java.io.FileInputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
@@ -193,8 +194,6 @@ internal fun normalizeMimeType(contentType: String?): String? {
         "video/mkv",
         "audio/mkv" -> MimeTypes.VIDEO_MATROSKA
 
-        "video/mp2t" -> MimeTypes.VIDEO_MP2T // Nuvio RS: live TV transport streams
-
         else -> null
     }
 }
@@ -233,7 +232,10 @@ private fun inferMimeTypeFromQuery(query: String): String? {
 
     query.split('&').forEach { parameter ->
         val key = parameter.substringBefore('=', missingDelimiterValue = "").trim()
-        val value = parameter.substringAfter('=', missingDelimiterValue = "").trim()
+        val rawValue = parameter.substringAfter('=', missingDelimiterValue = "").trim()
+        val value = runCatching {
+            URLDecoder.decode(rawValue.replace("+", "%2B"), Charsets.UTF_8.name())
+        }.getOrDefault(rawValue).lowercase(Locale.US)
         if (key.isBlank() || value.isBlank()) return@forEach
 
         when (key) {
@@ -298,7 +300,7 @@ internal fun probeMimeType(url: String, headers: Map<String, String>): String? {
                 connectTimeout = 3_000
                 readTimeout = 3_000
                 instanceFollowRedirects = true
-                setRequestProperty("User-Agent", PlayerPlaybackNetworking.DEFAULT_USER_AGENT) // Nuvio RS: same UA as playback
+                setRequestProperty("User-Agent", "Mozilla/5.0")
                 setRequestProperty("Accept", "*/*")
                 headers.forEach { (key, value) ->
                     setRequestProperty(key, value)

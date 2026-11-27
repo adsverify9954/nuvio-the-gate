@@ -1,7 +1,6 @@
 package com.nuvio.app.features.settings
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -84,11 +83,6 @@ internal enum class SettingsPage(
     ),
     Playback(
         titleRes = Res.string.compose_settings_page_playback,
-        category = SettingsCategory.Watch,
-        parentPage = Root,
-    ),
-    NuvioReshaped(
-        titleRes = Res.string.settings_nuvio_reshaped,
         category = SettingsCategory.Watch,
         parentPage = Root,
     ),
@@ -248,7 +242,6 @@ internal fun settingsCategoryForName(name: String): SettingsCategory = when (nam
 
 internal val SettingsPage.icon: ImageVector
     get() = when (this) {
-        SettingsPage.NuvioReshaped -> Icons.Rounded.AutoAwesome
         SettingsPage.Root -> Icons.Rounded.Settings
         SettingsPage.Account -> Icons.Default.Person
         SettingsPage.SupportersContributors -> Icons.Default.Favorite

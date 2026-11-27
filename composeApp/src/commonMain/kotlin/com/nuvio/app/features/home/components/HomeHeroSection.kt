@@ -1,20 +1,8 @@
 package com.nuvio.app.features.home.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -30,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.PaddingValues
@@ -40,11 +27,8 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -72,14 +55,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.nuvio.app.core.ui.HeroTint
+import com.nuvio.app.core.ui.focusedAlignment
+import com.nuvio.app.core.ui.rememberBackdropFocusState
+import com.nuvio.app.core.ui.revealAlpha
 import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
-import com.nuvio.app.core.ui.NuvioMotion
 import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.ui.heroStretchZoom
 import com.nuvio.app.core.ui.centeredVerticalBarPadding
-import com.nuvio.app.core.ui.themePalette
 import com.nuvio.app.core.ui.withVerticalBar
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.stableKey
@@ -126,11 +109,6 @@ fun HomeHeroSection(
     showImdbRating: Boolean = true,
     showMdbListRatings: Boolean = false,
     onItemClick: ((MetaPreview) -> Unit)? = null,
-    /**
-     * Hero "Play" action. When null the button falls back to [onItemClick]
-     * (opens the details page) - same as before.
-     */
-    onHeroPlayClick: ((MetaPreview) -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
 
@@ -196,17 +174,6 @@ fun HomeHeroSection(
             }
         }
         val currentPage = pagerState.currentPage
-        // Ken Burns: backdrop slowly breathes (zoom in/out) so the hero never sits still.
-        val kenBurnsTransition = rememberInfiniteTransition(label = "heroKenBurns")
-        val kenBurnsScale by kenBurnsTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.055f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 14_000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "heroKenBurnsScale",
-        )
         val visiblePages = listOf(
             currentPage,
             (currentPage - 1).coerceAtLeast(0),
@@ -231,24 +198,6 @@ fun HomeHeroSection(
             ?.itemIndex
             ?.let(items::get)
             ?: items[currentPage % items.size]
-
-        // Ambient tint: the hero artwork's dominant colour washes the whole
-        // hero so the page feels lit by the content (Zangetsu-style).
-        val heroTintTarget = currentItem.banner ?: currentItem.poster
-        var heroTintColor by remember { mutableStateOf<Color?>(null) }
-        val platformContext = coil3.compose.LocalPlatformContext.current
-        LaunchedEffect(heroTintTarget, platformContext) {
-            val tint = HeroTint.dominantColor(
-                context = platformContext,
-                imageUrl = heroTintTarget.orEmpty(),
-            )
-            heroTintColor = tint
-        }
-        val animatedHeroTint by animateColorAsState(
-            targetValue = heroTintColor ?: Color.Transparent,
-            animationSpec = tween(durationMillis = 600),
-            label = "heroAmbientTint",
-        )
 
         Box(
             modifier = Modifier
@@ -275,42 +224,32 @@ fun HomeHeroSection(
                         .heroStretchZoom(stretchPx),
                 ) {
                     visiblePages.forEach { layer ->
-                        AsyncImage(
-                            model = items[layer.itemIndex].banner ?: items[layer.itemIndex].poster,
-                            contentDescription = items[layer.itemIndex].name,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    val offset = scrollOffsetPx
-                                    val scrollScale = heroBackgroundScrollScale(offset)
-                                    alpha = layer.visibility
-                                    translationX = -layer.offset * heroWidthPx * HERO_BACKGROUND_PARALLAX
-                                    translationY = heroBackgroundScrollTranslationY(offset)
-                                    scaleX = HERO_BACKGROUND_SCALE * scrollScale * kenBurnsScale
-                                    scaleY = HERO_BACKGROUND_SCALE * scrollScale * kenBurnsScale
-                                },
-                            alignment = if (layout.isTablet) Alignment.TopCenter else Alignment.Center,
-                            contentScale = ContentScale.Crop,
-                        )
-                    }
-                }
-
-                // Ambient wash from the artwork's dominant colour.
-                if (animatedHeroTint.alpha > 0.01f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        animatedHeroTint.copy(alpha = 0.30f),
-                                        animatedHeroTint.copy(alpha = 0.16f),
-                                        animatedHeroTint.copy(alpha = 0.04f),
-                                        Color.Transparent,
-                                    ),
+                        key(layer.itemIndex) {
+                            val layerImageUrl = items[layer.itemIndex].banner ?: items[layer.itemIndex].poster
+                            val backdropFocus = rememberBackdropFocusState(layerImageUrl)
+                            AsyncImage(
+                                model = layerImageUrl,
+                                contentDescription = items[layer.itemIndex].name,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        val offset = scrollOffsetPx
+                                        val scrollScale = heroBackgroundScrollScale(offset)
+                                        alpha = layer.visibility * backdropFocus.revealAlpha
+                                        translationX = -layer.offset * heroWidthPx * HERO_BACKGROUND_PARALLAX
+                                        translationY = heroBackgroundScrollTranslationY(offset)
+                                        scaleX = HERO_BACKGROUND_SCALE * scrollScale
+                                        scaleY = HERO_BACKGROUND_SCALE * scrollScale
+                                    },
+                                alignment = backdropFocus.focusedAlignment(
+                                    if (layout.isTablet) Alignment.TopCenter else Alignment.Center,
                                 ),
-                            ),
-                    )
+                                contentScale = ContentScale.Crop,
+                                onSuccess = { state -> backdropFocus.onImageLoaded(state.result.image) },
+                                onError = { backdropFocus.onImageFailed() },
+                            )
+                        }
+                    }
                 }
 
                 Box(
@@ -327,6 +266,7 @@ fun HomeHeroSection(
                             ),
                         ),
                 )
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -377,16 +317,31 @@ fun HomeHeroSection(
                                         showImdbRating = showImdbRating,
                                         showMdbListRatings = showMdbListRatings,
                                         onItemClick = onItemClick,
-                                        onHeroPlayClick = onHeroPlayClick,
                                     )
                                 }
                             }
                         }
                     }
 
-                    // "View details" pill removed - the hero now carries explicit
-                    // Play / More Info actions (Netflix style), so a third
-                    // duplicate entry point only added noise.
+                    if (!layout.isTablet) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Surface(
+                            modifier = Modifier
+                                .clickable(enabled = onItemClick != null) {
+                                    onItemClick?.invoke(currentItem)
+                                },
+                            color = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background,
+                            shape = RoundedCornerShape(40.dp),
+                        ) {
+                            Text(
+                                text = stringResource(Res.string.home_view_details),
+                                modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
 
                     if (items.size > 1) {
                         Spacer(modifier = Modifier.height(if (layout.isTablet) 14.dp else 12.dp))
@@ -418,16 +373,7 @@ fun HomeHeroSection(
                             }
                         }
                     }
-
                 }
-
-                // Zangetsu brand mark - top-left over the backdrop.
-                com.nuvio.app.core.ui.ZangetsuMark(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 22.dp, top = 16.dp)
-                        .size(30.dp),
-                )
             }
         }
     }
@@ -484,27 +430,16 @@ private fun HeroContentBlock(
     showImdbRating: Boolean,
     showMdbListRatings: Boolean,
     onItemClick: ((MetaPreview) -> Unit)?,
-    onHeroPlayClick: ((MetaPreview) -> Unit)?,
 ) {
     var logoLoadError by remember(item.type, item.id, item.logo) {
         mutableStateOf(false)
     }
     val logoUrl = item.logo?.takeIf { it.isNotBlank() }
-    // Page swap ke saath content softly re-enters (never a hard pop).
-    val entrance = remember(item.id) { Animatable(0f) }
-    LaunchedEffect(item.id) {
-        entrance.animateTo(1f, NuvioMotion.fade(NuvioMotion.Medium))
-    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize()
-            .graphicsLayer {
-                val p = entrance.value
-                alpha = p
-                translationY = (1f - p) * 20.dp.toPx()
-            },
+            .animateContentSize(),
         horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
     ) {
         if (logoUrl != null && !logoLoadError) {
@@ -548,123 +483,6 @@ private fun HeroContentBlock(
             isTablet = layout.isTablet,
             showImdbRating = showImdbRating,
             showMdbListRatings = showMdbListRatings,
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
-        HeroCtaRow(
-            isTablet = layout.isTablet,
-            onPlayClick = {
-                val handler = onHeroPlayClick ?: onItemClick
-                handler?.invoke(item)
-            },
-            onInfoClick = { onItemClick?.invoke(item) },
-        )
-    }
-}
-
-/**
- * Netflix-style hero actions: a solid accent "Play" pill next to a ghost
- * "More Info" pill. Both animate with the shared press spring.
- */
-@Composable
-private fun HeroCtaRow(
-    isTablet: Boolean,
-    onPlayClick: () -> Unit,
-    onInfoClick: () -> Unit,
-) {
-    val palette = MaterialTheme.themePalette
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isTablet) {
-            Arrangement.spacedBy(12.dp)
-        } else {
-            Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-        },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        HeroCtaButton(
-            label = stringResource(Res.string.home_hero_play),
-            contentDescription = stringResource(Res.string.cd_play),
-            containerColor = palette.secondary,
-            contentColor = palette.onSecondary,
-            borderColor = null,
-            onClick = onPlayClick,
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    tint = palette.onSecondary,
-                    modifier = Modifier.size(22.dp),
-                )
-            },
-        )
-        HeroCtaButton(
-            label = stringResource(Res.string.home_hero_more_info),
-            contentDescription = stringResource(Res.string.cd_more_info),
-            containerColor = Color.Transparent,
-            contentColor = Color.White,
-            borderColor = Color.White.copy(alpha = 0.45f),
-            onClick = onInfoClick,
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Info,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(21.dp),
-                )
-            },
-        )
-    }
-}
-
-@Composable
-private fun HeroCtaButton(
-    label: String,
-    contentDescription: String,
-    containerColor: Color,
-    contentColor: Color,
-    borderColor: Color?,
-    onClick: () -> Unit,
-    icon: @Composable () -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.95f else 1f,
-        animationSpec = NuvioMotion.pressScale(),
-        label = "heroCtaScale",
-    )
-    val shape = RoundedCornerShape(6.dp)
-    Row(
-        modifier = Modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(shape)
-            .background(containerColor)
-            .then(
-                if (borderColor != null) {
-                    Modifier.border(1.dp, borderColor, shape)
-                } else {
-                    Modifier
-                },
-            )
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                onClickLabel = contentDescription,
-                onClick = onClick,
-            )
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
-    ) {
-        icon()
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = contentColor,
         )
     }
 }

@@ -34,10 +34,6 @@ import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Replay10
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -122,7 +118,6 @@ internal fun PlayerControlsShell(
     onAudioClick: () -> Unit,
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
-    onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     chapters: List<PlayerChapter> = emptyList(),
     onChaptersClick: (() -> Unit)? = null,
@@ -169,7 +164,6 @@ internal fun PlayerControlsShell(
             onSourcesClick = onSourcesClick,
             onEpisodesClick = onEpisodesClick,
             onChaptersClick = onChaptersClick,
-            onChannelsClick = onChannelsClick,
             chapters = chapters,
             onSpeedClick = onSpeedClick,
             onResizeModeClick = onResizeModeClick,
@@ -323,7 +317,6 @@ internal fun PlayerControlsShell(
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
                     onSourcesClick = onSourcesClick,
-                    onChannelsClick = onChannelsClick,
                     onEpisodesClick = onEpisodesClick,
                     chapters = chapters,
                     onChaptersClick = onChaptersClick,
@@ -375,7 +368,6 @@ internal fun PlayerControlsShell(
                         onSubtitleClick = onSubtitleClick,
                         onAudioClick = onAudioClick,
                         onSourcesClick = onSourcesClick,
-                        onChannelsClick = onChannelsClick,
                         onEpisodesClick = onEpisodesClick,
                         onChaptersClick = onChaptersClick,
                         onNextEpisodeClick = onNextEpisodeClick,
@@ -700,7 +692,6 @@ private fun ProgressControls(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onSourcesClick: (() -> Unit)? = null,
-    onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     chapters: List<PlayerChapter> = emptyList(),
     onChaptersClick: (() -> Unit)? = null,
@@ -778,22 +769,12 @@ private fun ProgressControls(
                             onClick = onSourcesClick,
                         )
                     }
-                    if (onChannelsClick != null) {
-                        PlayerActionPillButton(
-                            label = stringResource(Res.string.live_tv_player_channels),
-                            icon = Icons.Rounded.Tv,
-                            onClick = onChannelsClick,
-                        )
-                    }
                     if (onEpisodesClick != null) {
                         PlayerActionPillButton(
                             label = stringResource(Res.string.compose_player_episodes),
                             painter = episodesPainter,
                             onClick = onEpisodesClick,
                         )
-                    }
-                    seekPreviewSyncAction()?.let {
-                        PlayerActionPillButton(stringResource(Res.string.player_seek_preview_sync), it, Icons.Rounded.Tune)
                     }
                 }
             }
@@ -813,14 +794,10 @@ internal fun PlayerSeekBar(
 ) {
     val seekDurationMs = durationMs.coerceAtLeast(1L)
     val seekDescription = stringResource(Res.string.player_seek_position)
-    val interactionSource = remember { MutableInteractionSource() }
-    val isDragged by interactionSource.collectIsDraggedAsState()
     val seekState = remember(seekDurationMs) { SliderState(trackRange = 0f..seekDurationMs.toFloat()) }
     seekState.value = displayedPositionMs.coerceIn(0L, seekDurationMs).toFloat()
     Column(modifier = modifier) {
-        SeekPreviewAboveTimeline(displayedPositionMs, durationMs, active = isDragged)
         Slider(
-            interactionSource = interactionSource,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(metrics.sliderTouchHeight)

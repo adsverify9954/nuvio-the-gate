@@ -62,7 +62,3 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
-
-# sherpa-onnx (audio subtitle sync speech recognition): JNI reads config fields by name.
--keep class com.k2fsa.sherpa.onnx.** { *; }
--keep interface com.k2fsa.sherpa.onnx.** { *; }

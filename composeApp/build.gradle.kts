@@ -12,8 +12,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.TestExecutable
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
-import java.net.URI
-import java.security.MessageDigest
 import java.util.Properties
 
 abstract class GenerateRuntimeConfigsTask : DefaultTask() {
@@ -152,36 +150,6 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
             )
         }
 
-        // Seekr seek-preview key, supplied to CI builds from the SEEKR_API_KEY secret.
-        outDir.resolve("com/nuvio/app/features/player/seekpreview").apply {
-            mkdirs()
-            resolve("SeekrConfig.kt").writeText(
-                """
-                |package com.nuvio.app.features.player.seekpreview
-                |
-                |internal object SeekrConfig {
-                |    const val API_KEY = "${props.getProperty("SEEKR_API_KEY", "").trim()}"
-                |}
-                """.trimMargin()
-            )
-        }
-
-        // Google sign-in for Reshaped sync ("TVs and Limited Input devices" client, shared with the TV
-        // app), from the RESHAPED_GOOGLE_TV_CLIENT_ID / _SECRET secrets.
-        outDir.resolve("com/nuvio/app/features/reshaped/sync").apply {
-            mkdirs()
-            resolve("ReshapedGoogleConfig.kt").writeText(
-                """
-                |package com.nuvio.app.features.reshaped.sync
-                |
-                |internal object ReshapedGoogleConfig {
-                |    const val CLIENT_ID = "${props.getProperty("RESHAPED_GOOGLE_TV_CLIENT_ID", "").trim()}"
-                |    const val CLIENT_SECRET = "${props.getProperty("RESHAPED_GOOGLE_TV_CLIENT_SECRET", "").trim()}"
-                |}
-                """.trimMargin()
-            )
-        }
-
         outDir.resolve("com/nuvio/app/features/details").apply {
             mkdirs()
             resolve("ImdbEpisodeRatingsConfig.kt").writeText(
@@ -191,21 +159,6 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
                 |object ImdbEpisodeRatingsConfig {
                 |    const val IMDB_RATINGS_API_BASE_URL = "${props.getProperty("IMDB_RATINGS_API_BASE_URL", "")}" 
                 |    const val IMDB_TAPFRAME_API_BASE_URL = "${props.getProperty("IMDB_TAPFRAME_API_BASE_URL", "")}" 
-                |}
-                """.trimMargin()
-            )
-        }
-
-        // The Gate — permanent addon source manifest URL (Cloudflare Worker).
-        // Override per-build via `THE_GATE_MANIFEST` in local.properties.
-        outDir.resolve("com/nuvio/app/features/thegate").apply {
-            mkdirs()
-            resolve("TheGateEndpoint.kt").writeText(
-                """
-                |package com.nuvio.app.features.thegate
-                |
-                |object TheGateEndpoint {
-                |    const val MANIFEST = "${props.getProperty("THE_GATE_MANIFEST", "").takeIf { it.isNotBlank() } ?: "https://my-anime-gate.unityads9954.workers.dev/manifest.json"}"
                 |}
                 """.trimMargin()
             )
@@ -385,22 +338,6 @@ tasks.withType<KotlinCompilationTask<*>>().configureEach {
     dependsOn(generateRuntimeConfigs)
 }
 
-// On-device speech recognition for audio subtitle sync (sherpa-onnx, Apache-2.0). The AAR is
-// ~50 MB, so it is downloaded once into libs/ (git-ignored) and verified instead of committed.
-val sherpaOnnxVersion = "1.13.8"
-val sherpaOnnxSha256 = "633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96"
-val sherpaOnnxAar: File = project.file("libs/sherpa-onnx-$sherpaOnnxVersion.aar").also { aar ->
-    fun sha256(file: File): String = MessageDigest.getInstance("SHA-256")
-        .digest(file.readBytes()).joinToString("") { "%02x".format(it) }
-    if (aar.isFile && sha256(aar) == sherpaOnnxSha256) return@also
-    val url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$sherpaOnnxVersion/sherpa-onnx-$sherpaOnnxVersion.aar"
-    logger.lifecycle("Downloading $url")
-    val partial = File(aar.path + ".part")
-    URI(url).toURL().openStream().use { input -> partial.outputStream().use { input.copyTo(it) } }
-    check(sha256(partial) == sherpaOnnxSha256) { "Checksum mismatch for $url" }
-    partial.renameTo(aar)
-}
-
 kotlin {
     android {
         namespace = "com.nuvio.app"
@@ -532,7 +469,6 @@ kotlin {
                 implementation("androidx.annotation:annotation-experimental:1.3.1")
                 implementation(libs.mpv.android.lib)
                 implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("lib-*.aar"))))
-                implementation(files(sherpaOnnxAar))
                 if (androidDistribution == "full") {
                     implementation(files("libs/quickjs-kt-android-1.0.5-nuvio.aar"))
                     implementation(libs.ksoup)
@@ -622,4 +558,12 @@ configurations.all {
     exclude(group = "androidx.media3", module = "media3-datasource")
     exclude(group = "androidx.media3", module = "media3-datasource-okhttp")
     exclude(group = "androidx.media3", module = "media3-extractor")
+}
+
+composeCompiler {
+    stabilityConfigurationFiles.add(project.layout.projectDirectory.file("compose_stability_config.conf"))
+    if (providers.gradleProperty("composeCompilerReports").orNull == "true") {
+        metricsDestination = layout.buildDirectory.dir("compose_metrics")
+        reportsDestination = layout.buildDirectory.dir("compose_reports")
+    }
 }

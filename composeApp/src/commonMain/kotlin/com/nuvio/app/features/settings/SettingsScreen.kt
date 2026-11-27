@@ -670,7 +670,6 @@ private fun MobileSettingsScreen(
                 SettingsPage.Streams -> streamsSettingsContent(
                     isTablet = false,
                 )
-                SettingsPage.NuvioReshaped -> nuvioReshapedSettingsContent(isTablet = false) // Nuvio RS hook
                 SettingsPage.Appearance -> appearanceSettingsContent(
                     isTablet = false,
                     selectedTheme = selectedTheme,
@@ -719,6 +718,7 @@ private fun MobileSettingsScreen(
                     blurNextUp = continueWatchingPreferencesUiState.blurNextUp,
                     showResumePromptOnLaunch = continueWatchingPreferencesUiState.showResumePromptOnLaunch,
                     sortMode = continueWatchingPreferencesUiState.sortMode,
+                    clickAction = continueWatchingPreferencesUiState.clickAction,
                 )
                 SettingsPage.PosterCustomization -> posterCustomizationSettingsContent(
                     isTablet = false,
@@ -1072,7 +1072,6 @@ private fun TabletSettingsScreen(
                     SettingsPage.Streams -> streamsSettingsContent(
                         isTablet = true,
                     )
-                    SettingsPage.NuvioReshaped -> nuvioReshapedSettingsContent(isTablet = true) // Nuvio RS hook
                     SettingsPage.Appearance -> appearanceSettingsContent(
                         isTablet = true,
                         selectedTheme = selectedTheme,
@@ -1121,6 +1120,7 @@ private fun TabletSettingsScreen(
                         blurNextUp = continueWatchingPreferencesUiState.blurNextUp,
                         showResumePromptOnLaunch = continueWatchingPreferencesUiState.showResumePromptOnLaunch,
                         sortMode = continueWatchingPreferencesUiState.sortMode,
+                        clickAction = continueWatchingPreferencesUiState.clickAction,
                     )
                     SettingsPage.PosterCustomization -> posterCustomizationSettingsContent(
                         isTablet = true,

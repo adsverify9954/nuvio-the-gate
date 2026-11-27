@@ -1,7 +1,5 @@
 package com.nuvio.app.features.autosync
 
-import com.nuvio.app.features.player.PlayerSubtitleCueParser
-
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -169,7 +167,7 @@ class AutoSyncSubtitleTextRetimerTest {
 
     private fun shifted(srtOrVtt: String, offsetMs: Long): AutoSyncTimelineRetimeResult =
         timeline(
-            cues = PlayerSubtitleCueParser.parse(srtOrVtt).map { cue ->
+            cues = AutoSyncSubtitleCueParser.parse(srtOrVtt).map { cue ->
                 AutoSyncRetimedCue(
                     originalStartTimeMs = cue.startTimeMs,
                     originalEndTimeMs = cue.endTimeMs,

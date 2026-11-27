@@ -43,8 +43,6 @@ fun HomePosterCard(
         bottomLeftLogoUrl = if (isLandscapeMode && showLandscapeOverlay && effectiveLandscapePoster.isNullOrBlank()) item.logo else null,
         bottomLeftText = if (isLandscapeMode && showLandscapeOverlay && effectiveLandscapePoster.isNullOrBlank() && item.logo.isNullOrBlank() && !posterCardStyle.hideLabelsEnabled) item.name else null,
         isWatched = isWatched,
-        topRightBadge = { HomePosterTopRightBadge(item = item) },
-        bottomLeftBadge = { HomePosterBottomLeftBadge(item = item) },
         onClick = onClick,
         onLongClick = onLongClick,
     )

@@ -47,9 +47,6 @@ import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.accentBrush
 import com.nuvio.app.core.ui.nuvioTypeScale
 import com.nuvio.app.core.ui.themePalette
-import com.nuvio.app.features.player.volumeboost.LevelBarFill
-import com.nuvio.app.features.player.volumeboost.VolumeBoost
-import com.nuvio.app.features.player.volumeboost.levelLabelColor
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_player_brightness
 import nuvio.composeapp.generated.resources.compose_player_volume
@@ -108,8 +105,7 @@ private fun PlayerGestureFeedback(
                     val description = stringResource(
                         if (isBrightness) Res.string.compose_player_brightness else Res.string.compose_player_volume,
                     )
-                    val maxLevel = if (isBrightness) 1f else VolumeBoost.maxLevel // Nuvio RS: volume boost
-                    val level = feedback.level?.coerceIn(0f, maxLevel) ?: 0f
+                    val level = feedback.level?.coerceIn(0f, 1f) ?: 0f
                     val trackHeight = minOf(maxHeight / 4, 104.dp)
                     val animatedLevel by animateFloatAsState(level, tween(80), label = "playerGestureLevel")
                     val percent = (level * 100f).roundToInt()
@@ -124,7 +120,7 @@ private fun PlayerGestureFeedback(
                         // column evenly on both sides so the bar itself never moves.
                         Text(
                             text = percent.toString(),
-                            color = levelLabelColor(level),
+                            color = Color.White,
                             style = MaterialTheme.nuvioTypeScale.bodySm.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 shadow = Shadow(Color.Black.copy(alpha = 0.8f), blurRadius = 8f),
@@ -138,14 +134,20 @@ private fun PlayerGestureFeedback(
                             modifier = Modifier
                                 .semantics {
                                     contentDescription = description
-                                    progressBarRangeInfo = ProgressBarRangeInfo(level, 0f..maxLevel)
+                                    progressBarRangeInfo = ProgressBarRangeInfo(level, 0f..1f)
                                 }
                                 .width(6.dp)
                                 .height(trackHeight)
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(Color.White.copy(alpha = 0.3f)),
                         ) {
-                            LevelBarFill(animatedLevel, maxLevel, Modifier.fillMaxSize())
+                            Box(
+                                Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(animatedLevel)
+                                    .background(MaterialTheme.themePalette.accentBrush()),
+                            )
                         }
                     }
                 }

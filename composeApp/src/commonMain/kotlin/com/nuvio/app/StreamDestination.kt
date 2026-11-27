@@ -40,13 +40,8 @@ import com.nuvio.app.features.streams.StreamLaunchStore
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.streams.StreamsRepository
 import com.nuvio.app.features.streams.StreamsScreen
-import com.nuvio.app.features.streams.shouldOpenInIframeFallback
 import com.nuvio.app.features.streams.shouldShowAutoPlayLoading
 import com.nuvio.app.features.streams.shouldUseLandscapeAutoPlayLoading
-import com.nuvio.app.features.thegate.NativeStreamResolver
-import com.nuvio.app.features.thegate.TheGateWebviewPlatform
-import com.nuvio.app.features.thegate.isNativeResolvableEmbed
-import com.nuvio.app.core.network.createApiHttpClient
 import com.nuvio.app.features.streams.StreamsUiState
 import com.nuvio.app.features.streams.YouTubeStreamResolver
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
@@ -72,10 +67,6 @@ private data class PendingP2pStreamOpen(
     val forceInternal: Boolean,
     val isAutoPlay: Boolean,
 )
-
-// Same UA the WebView fallback uses — The Gate hosts expect a browser fingerprint.
-private const val WEBVIEW_CHROME_UA =
-    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
 @Composable
 internal fun StreamDestination(
@@ -397,6 +388,8 @@ internal fun StreamDestination(
                         bingeGroup = cached.bingeGroup,
                     ),
                 ),
+                sourceFromLinkCache = true,
+                sourceAutoSelected = true,
             )
             if (playerSettings.externalPlayerEnabled) {
                 openExternalPlayback(playerLaunch)
@@ -448,11 +441,6 @@ internal fun StreamDestination(
         if (autoPlayHandled) return@LaunchedEffect
         if (streamsUiState.requestToken != expectedStreamsRequestToken) return@LaunchedEffect
         val selectedStream = streamsUiState.autoPlayStream ?: return@LaunchedEffect
-        // Abyss (encrypted iframe) cannot autoplay in MPVKit; let the user pick.
-        if (selectedStream.shouldOpenInIframeFallback) {
-            StreamsRepository.skipAutoPlayStream(selectedStream)
-            return@LaunchedEffect
-        }
         val stream = if (selectedStream.needsServerPreparation) {
             StreamsRepository.setOverlayVisible(true, getString(Res.string.player_loading_preparing))
             runCatching { ServerPlayback.prepare(selectedStream) }
@@ -573,6 +561,7 @@ internal fun StreamDestination(
             contentLanguage = resolveLaunchContentLanguage(),
             sourceFilename = stream.behaviorHints.filename,
             stream = stream,
+            sourceAutoSelected = true,
         )
         if (playerSettings.externalPlayerEnabled && stream.serverTarget == null) {
             openExternalPlayback(playerLaunch)
@@ -617,93 +606,6 @@ internal fun StreamDestination(
         forceInternal: Boolean,
         saveForReuse: Boolean = true,
     ) {
-        // Native (MPVKit / ExoPlayer-style) playback from a direct media URL.
-        // MixDrop device-resolver yahi path use karta hai (openNativePlaybackFromUrl).
-        fun openNativePlaybackFromUrl(
-            sourceUrl: String,
-            overrideHeaders: Map<String, String>? = null,
-            saveForReuseOverride: Boolean? = null,
-        ) {
-            val reuseLink = saveForReuseOverride ?: saveForReuse
-            val nativeSourceHeaders = sanitizePlaybackHeaders(
-                overrideHeaders ?: stream.behaviorHints.proxyHeaders?.request,
-            )
-            if (reuseLink && playerSettings.streamReuseLastLinkEnabled && stream.serverTarget == null) {
-                val cacheKey = StreamLinkCacheRepository.contentKey(
-                    type = launch.type,
-                    videoId = effectiveVideoId,
-                    parentMetaId = launch.parentMetaId,
-                    season = launch.seasonNumber,
-                    episode = launch.episodeNumber,
-                )
-                StreamLinkCacheRepository.save(
-                    contentKey = cacheKey,
-                    url = sourceUrl,
-                    streamName = stream.streamLabel,
-                    addonName = stream.addonName,
-                    addonId = stream.addonId,
-                    requestHeaders = nativeSourceHeaders,
-                    responseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
-                    filename = stream.behaviorHints.filename,
-                    videoHash = stream.behaviorHints.videoHash,
-                    videoSize = stream.behaviorHints.videoSize,
-                    infoHash = stream.p2pInfoHash,
-                    fileIdx = stream.p2pFileIdx,
-                    bingeGroup = stream.behaviorHints.bingeGroup,
-                    streamType = stream.streamType,
-                    contentLanguage = resolveLaunchContentLanguage(),
-                    addonLogo = stream.addonLogo,
-                    streamDescription = stream.streamSubtitle,
-                )
-            }
-            val playerLaunch = PlayerLaunch(
-                profileId = launch.profileId,
-                title = launch.title,
-                sourceUrl = sourceUrl,
-                sourceHeaders = nativeSourceHeaders,
-                sourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
-                externalSubtitles = stream.externalSubtitles,
-                streamType = stream.streamType,
-                logo = launch.logo,
-                poster = launch.poster,
-                background = launch.background,
-                seasonNumber = launch.seasonNumber,
-                episodeNumber = launch.episodeNumber,
-                episodeTitle = launch.episodeTitle,
-                episodeThumbnail = launch.episodeThumbnail,
-                streamTitle = stream.streamLabel,
-                streamSubtitle = stream.streamSubtitle,
-                bingeGroup = stream.behaviorHints.bingeGroup,
-                pauseDescription = pauseDescription,
-                providerName = stream.addonName,
-                providerAddonId = stream.addonId,
-                contentType = launch.type,
-                videoId = effectiveVideoId,
-                parentMetaId = launch.parentMetaId ?: effectiveVideoId,
-                parentMetaType = launch.parentMetaType ?: launch.type,
-                initialPositionMs = resolvedResumePositionMs ?: 0L,
-                initialProgressFraction = resolvedResumeProgressFraction,
-                subtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints, sourceUrl),
-                contentLanguage = resolveLaunchContentLanguage(),
-                sourceFilename = stream.behaviorHints.filename,
-                stream = stream,
-            )
-
-            if (!forceInternal && (forceExternal || playerSettings.externalPlayerEnabled)) {
-                streamRouteScope.launch {
-                    openExternalPlayback(playerLaunch)
-                    StreamsRepository.cancelLoading()
-                }
-                return
-            }
-
-            val launchId = PlayerLaunchStore.put(playerLaunch)
-            StreamsRepository.cancelLoading()
-            navController.navigate(
-                PlayerRoute(launchId = launchId, title = playerLaunch.title)
-            )
-        }
-
         if (stream.needsServerPreparation) {
             if (preparingServerStream) return
             streamRouteScope.launch {
@@ -802,64 +704,81 @@ internal fun StreamDestination(
             }
             return
         }
-        // Abyss fallback: encrypted iframe → Android WebView instead of MPVKit.
-        // MixDrop: pehle device-side direct URL resolve karo (wurl/mp4) → native player;
-        // na ho paye to WebView fallback.
-        if (stream.shouldOpenInIframeFallback) {
-            val webviewUrl = stream.playableDirectUrl ?: return
-            // Capture-then-handoff: jab verified page actual video load kare, us URL
-            // ko pakad ke WebView band kar dein aur native player (ExoPlayer) me
-            // apne aap continue karein. Byse/MixDrop/Abyss direct links device-session
-            // signed hote hain, usi liye yehi device consume karega. Agar media
-            // request observe na ho (e.g. blob:/MSE), to WebView me hi inline chalta rahega.
-            fun openWebViewWithNativeCapture() {
-                val opened = TheGateWebviewPlatform.openAbyssStream(webviewUrl) { capturedUrl, referer ->
-                    streamRouteScope.launch {
-                        openNativePlaybackFromUrl(
-                            sourceUrl = capturedUrl,
-                            overrideHeaders = mapOf(
-                                "Referer" to (referer ?: webviewUrl),
-                                "User-Agent" to WEBVIEW_CHROME_UA,
-                            ),
-                            // Signed URLs expire quickly — never keep them for reuse.
-                            saveForReuseOverride = false,
-                        )
-                    }
-                }
-                if (opened) {
-                    StreamsRepository.cancelLoading()
-                }
+        val sourceUrl = stream.playableDirectUrl ?: return
+        if (saveForReuse && playerSettings.streamReuseLastLinkEnabled && stream.serverTarget == null) {
+            val cacheKey = StreamLinkCacheRepository.contentKey(
+                type = launch.type,
+                videoId = effectiveVideoId,
+                parentMetaId = launch.parentMetaId,
+                season = launch.seasonNumber,
+                episode = launch.episodeNumber,
+            )
+            StreamLinkCacheRepository.save(
+                contentKey = cacheKey,
+                url = sourceUrl,
+                streamName = stream.streamLabel,
+                addonName = stream.addonName,
+                addonId = stream.addonId,
+                requestHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request),
+                responseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
+                filename = stream.behaviorHints.filename,
+                videoHash = stream.behaviorHints.videoHash,
+                videoSize = stream.behaviorHints.videoSize,
+                infoHash = stream.p2pInfoHash,
+                fileIdx = stream.p2pFileIdx,
+                bingeGroup = stream.behaviorHints.bingeGroup,
+                streamType = stream.streamType,
+                contentLanguage = resolveLaunchContentLanguage(),
+                addonLogo = stream.addonLogo,
+                streamDescription = stream.streamSubtitle,
+            )
+        }
+        val playerLaunch = PlayerLaunch(
+            profileId = launch.profileId,
+            title = launch.title,
+            sourceUrl = sourceUrl,
+            sourceHeaders = sanitizePlaybackHeaders(stream.behaviorHints.proxyHeaders?.request),
+            sourceResponseHeaders = sanitizePlaybackResponseHeaders(stream.behaviorHints.proxyHeaders?.response),
+            externalSubtitles = stream.externalSubtitles,
+            streamType = stream.streamType,
+            logo = launch.logo,
+            poster = launch.poster,
+            background = launch.background,
+            seasonNumber = launch.seasonNumber,
+            episodeNumber = launch.episodeNumber,
+            episodeTitle = launch.episodeTitle,
+            episodeThumbnail = launch.episodeThumbnail,
+            streamTitle = stream.streamLabel,
+            streamSubtitle = stream.streamSubtitle,
+            bingeGroup = stream.behaviorHints.bingeGroup,
+            pauseDescription = pauseDescription,
+            providerName = stream.addonName,
+            providerAddonId = stream.addonId,
+            contentType = launch.type,
+            videoId = effectiveVideoId,
+            parentMetaId = launch.parentMetaId ?: effectiveVideoId,
+            parentMetaType = launch.parentMetaType ?: launch.type,
+            initialPositionMs = resolvedResumePositionMs ?: 0L,
+            initialProgressFraction = resolvedResumeProgressFraction,
+            subtitleExtras = SubtitleRequestExtras.from(stream.behaviorHints, sourceUrl),
+            contentLanguage = resolveLaunchContentLanguage(),
+            sourceFilename = stream.behaviorHints.filename,
+            stream = stream,
+        )
+
+        if (!forceInternal && (forceExternal || playerSettings.externalPlayerEnabled)) {
+            streamRouteScope.launch {
+                openExternalPlayback(playerLaunch)
+                StreamsRepository.cancelLoading()
             }
-            if (webviewUrl.isNativeResolvableEmbed()) {
-                streamRouteScope.launch {
-                    println("RESOLV start $webviewUrl")
-                    val resolved = NativeStreamResolver.resolve(webviewUrl)
-                    val ok = resolved.getOrNull()
-                    if (ok != null) {
-                        println("RESOLV OK ${ok.directUrl}")
-                        openNativePlaybackFromUrl(
-                            sourceUrl = ok.directUrl,
-                            overrideHeaders = mapOf(
-                                "Referer" to ok.referer,
-                                "User-Agent" to WEBVIEW_CHROME_UA,
-                            ),
-                            // Signed URLs expire in hours — never keep them for reuse.
-                            saveForReuseOverride = false,
-                        )
-                    } else {
-                        println("RESOLV FAIL ${resolved.exceptionOrNull()?.message}")
-                        resolved.exceptionOrNull()?.message?.let { NuvioToastController.show("Resolve: $it") }
-                        openWebViewWithNativeCapture()
-                    }
-                }
-                return
-            }
-            openWebViewWithNativeCapture()
             return
         }
-        val sourceUrl = stream.playableDirectUrl ?: return
-        openNativePlaybackFromUrl(sourceUrl)
-        return
+
+        val launchId = PlayerLaunchStore.put(playerLaunch)
+        StreamsRepository.cancelLoading()
+        navController.navigate(
+            PlayerRoute(launchId = launchId, title = playerLaunch.title)
+        )
     }
 
     LaunchedEffect(reuseNavigated) {
@@ -913,7 +832,6 @@ internal fun StreamDestination(
                 resumeProgressFraction = launch.resumeProgressFraction,
                 manualSelection = launch.manualSelection,
                 startFromBeginning = launch.startFromBeginning,
-                forceAutoPlay = launch.forceAutoPlay,
                 onStreamSelected = { stream, resolvedResumePositionMs, resolvedResumeProgressFraction ->
                     openSelectedStream(
                         stream = stream,

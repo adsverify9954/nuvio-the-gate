@@ -61,6 +61,7 @@ private fun PlayerScreenRuntime.persistComputedVideoHash(enriched: SubtitleReque
 }
 
 internal fun PlayerScreenRuntime.setSubtitleDelay(delayMs: Int) {
+    (playerController as? AutoSyncPlayerController)?.cancelForManualSubtitleDelay() // AutoSync hook
     val clamped = delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS)
     subtitleDelayMs = clamped
     PlayerTrackPreferenceStorage.saveSubtitleDelayMs(playbackSession.videoId, clamped)
@@ -81,7 +82,6 @@ internal fun PlayerScreenRuntime.loadSubtitleAutoSyncCues(force: Boolean = false
             )
             PlayerSubtitleCueParser.parse(body, subtitle.url)
         }
-        if (selectedAddonSubtitle?.url != subtitle.url) return@launch
         result.fold(
             onSuccess = { cues ->
                 subtitleAutoSyncState = subtitleAutoSyncState.copy(

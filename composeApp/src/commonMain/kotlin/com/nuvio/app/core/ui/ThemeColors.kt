@@ -160,24 +160,6 @@ object ThemeColors {
         backgroundCard = Color(0xFF241A1F),
     )
 
-    /**
-     * Zangetsu look (sampled from the reference app): flat crimson #FF4D57 on
-     * a near-black #0B0B0F canvas with #141318 elevated surfaces.
-     */
-    val Zangetsu = ThemeColorPalette(
-        secondary = Color(0xFFFF4D57),
-        secondaryVariant = Color(0xFFC93F48),
-        accentGradient = listOf(Color(0xFFFF4D57)),
-        nativeAccentHex = "#FF4D57",
-        onSecondary = Color.White,
-        onSecondaryVariant = Color.White,
-        focusRing = Color(0xFFFF4D57),
-        focusBackground = Color(0xFF2A1518),
-        background = Color(0xFF0B0B0F),
-        backgroundElevated = Color(0xFF141318),
-        backgroundCard = Color(0xFF1D1B20),
-    )
-
     val White = ThemeColorPalette(
         secondary = Color(0xFFF5F5F5),
         secondaryVariant = Color(0xFFE0E0E0),
@@ -208,6 +190,5 @@ object ThemeColors {
         AppTheme.AMBER -> Amber
         AppTheme.ROSE -> Rose
         AppTheme.WHITE -> White
-        AppTheme.ZANGETSU -> Zangetsu
     }
 }

@@ -17,22 +17,15 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.stopScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,8 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import kotlinx.coroutines.delay
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
@@ -105,50 +96,26 @@ fun <T> NuvioShelfSection(
             horizontalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
             if (key != null) {
-                itemsIndexed(
+                items(
                     items = entries.withDuplicateSafeLazyKeys(key),
-                    key = { _, entry -> entry.lazyKey },
-                ) { index, keyedEntry ->
-                    Box(
-                        modifier = Modifier
-                            .nuvioShelfEntrance(index)
-                            .then(if (animatePlacement) Modifier.animateItem() else Modifier),
-                    ) {
+                    key = { entry -> entry.lazyKey },
+                ) { keyedEntry ->
+                    if (animatePlacement) {
+                        Box(modifier = Modifier.animateItem()) { itemContent(keyedEntry.value) }
+                    } else {
                         itemContent(keyedEntry.value)
                     }
                 }
             } else {
-                itemsIndexed(entries) { index, entry ->
-                    Box(
-                        modifier = Modifier
-                            .nuvioShelfEntrance(index)
-                            .then(if (animatePlacement) Modifier.animateItem() else Modifier),
-                    ) {
+                items(entries) { entry ->
+                    if (animatePlacement) {
+                        Box(modifier = Modifier.animateItem()) { itemContent(entry) }
+                    } else {
                         itemContent(entry)
                     }
                 }
             }
         }
-    }
-}
-
-/**
- * Shelf items reveal left-to-right with a small stagger — the row "breathes in"
- * instead of popping. Uses one Animatable per item (cheap, GPU friendly).
- */
-@Composable
-private fun Modifier.nuvioShelfEntrance(index: Int): Modifier {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(index) {
-        delay(NuvioMotion.staggerDelay(index).toLong())
-        progress.animateTo(1f, NuvioMotion.fade(NuvioMotion.Medium))
-    }
-    return this.graphicsLayer {
-        val p = progress.value
-        alpha = p
-        scaleX = 0.94f + 0.06f * p
-        scaleY = 0.94f + 0.06f * p
-        translationY = (1f - p) * 16.dp.toPx()
     }
 }
 
@@ -164,11 +131,6 @@ fun NuvioPosterCard(
     bottomLeftLogoUrl: String? = null,
     bottomLeftText: String? = null,
     isWatched: Boolean = false,
-    badge: (@Composable androidx.compose.foundation.layout.BoxScope.() -> Unit)? = null,
-    /** Zangetsu-style corner badge (quality / score) drawn top-right. */
-    topRightBadge: (@Composable () -> Unit)? = null,
-    /** Zangetsu-style corner badge (DUB / SUB) drawn bottom-left. */
-    bottomLeftBadge: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -176,14 +138,6 @@ fun NuvioPosterCard(
     val tokens = MaterialTheme.nuvio
     val cardWidth = shape.cardWidth(basePosterWidthDp = posterCardStyle.widthDp)
     val cardShape = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
-    // Press feedback: soft spring scale (feels alive, never janky).
-    val pressInteraction = remember { MutableInteractionSource() }
-    val isPressed by pressInteraction.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.955f else 1f,
-        animationSpec = NuvioMotion.pressScale(),
-        label = "posterPressScale",
-    )
     val catalogLogoOverlaySize = catalogLogoOverlaySize(
         basePosterWidthDp = posterCardStyle.widthDp,
         shape = shape,
@@ -198,10 +152,6 @@ fun NuvioPosterCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(shape.aspectRatio)
-                .graphicsLayer {
-                    scaleX = pressScale
-                    scaleY = pressScale
-                }
                 .clip(cardShape)
                 .background(tokens.colors.surface)
                 .nuvioCardDepth(
@@ -213,7 +163,6 @@ fun NuvioPosterCard(
                     onLongClick = onLongClick,
                     zoomImageUrl = imageUrl,
                     zoomCornerRadius = posterCardStyle.cornerRadiusDp.dp,
-                    interactionSource = pressInteraction,
                 ),
             contentAlignment = Alignment.Center,
         ) {
@@ -225,10 +174,7 @@ fun NuvioPosterCard(
                         coil3.request.ImageRequest.Builder(platformContext)
                             .data(imageUrl)
                             .memoryCacheKeyExtras(
-                                mapOf(
-                                    com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY
-                                        to fallbackImageUrl!!,
-                                ),
+                                mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to fallbackImageUrl!!)
                             )
                             .build()
                     } else {
@@ -298,35 +244,6 @@ fun NuvioPosterCard(
             }
 
             NuvioPosterWatchedOverlay(isWatched = isWatched)
-
-            if (topRightBadge != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp),
-                ) {
-                    topRightBadge()
-                }
-            } else if (badge != null) {
-                val legacyBadge = badge
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp),
-                ) {
-                    legacyBadge()
-                }
-            }
-
-            if (bottomLeftBadge != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(6.dp),
-                ) {
-                    bottomLeftBadge()
-                }
-            }
         }
         if (shouldShowTitleBelow) {
             Text(
@@ -361,19 +278,8 @@ private fun NuvioShelfSectionHeader(
     viewAllPillSize: NuvioViewAllPillSize = NuvioViewAllPillSize.Default,
 ) {
     val tokens = MaterialTheme.nuvio
-    // Header slides in together with its row — no abrupt text pop.
-    val headerEntrance = remember { Animatable(0f) }
-    LaunchedEffect(title) {
-        headerEntrance.animateTo(1f, NuvioMotion.fade(NuvioMotion.Medium))
-    }
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                val p = headerEntrance.value
-                alpha = p
-                translationY = (1f - p) * 10.dp.toPx()
-            },
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

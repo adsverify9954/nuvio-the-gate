@@ -66,8 +66,6 @@ internal fun isSupportedSubtitleFont(name: String, bytes: ByteArray): Boolean {
 
 @Composable
 internal fun rememberSubtitleFontFamily(id: String): FontFamily {
-    val reshapedFont = rememberReshapedSubtitleFontFamily()
-    if (id == "default" && reshapedFont != null) return reshapedFont
     val family = produceState<FontFamily>(FontFamily.SansSerif, id) {
         value = withContext(Dispatchers.Default) {
             when (id) {

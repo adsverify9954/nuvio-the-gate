@@ -26,8 +26,6 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -114,7 +112,6 @@ internal fun PlayerControlActions(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onSourcesClick: (() -> Unit)?,
-    onChannelsClick: (() -> Unit)?,
     onEpisodesClick: (() -> Unit)?,
     onChaptersClick: (() -> Unit)?,
     onNextEpisodeClick: (() -> Unit)?,
@@ -134,7 +131,6 @@ internal fun PlayerControlActions(
         onSourcesClick = onSourcesClick,
         onEpisodesClick = onEpisodesClick,
         onChaptersClick = onChaptersClick,
-        onChannelsClick = onChannelsClick,
         onNextEpisodeClick = onNextEpisodeClick,
         onSpeedClick = onSpeedClick,
         onResizeModeClick = onResizeModeClick,
@@ -243,7 +239,6 @@ internal fun playerControlActions(
     onOpenInExternalPlayer: (() -> Unit)?,
     onStreamInfoClick: () -> Unit,
     onSubmitIntroClick: (() -> Unit)?,
-    onChannelsClick: (() -> Unit)? = null,
 ): List<PlayerControlAction> =
     listOfNotNull(
         onNextEpisodeClick?.let {
@@ -270,12 +265,6 @@ internal fun playerControlActions(
             PlayerControlAction(
                 stringResource(Res.string.compose_player_sources), it,
                 painter = appIconPainter(AppIconResource.PlayerSource),
-            )
-        },
-        onChannelsClick?.let {
-            PlayerControlAction(
-                stringResource(Res.string.live_tv_player_channels), it,
-                icon = Icons.Rounded.Tv,
             )
         },
         onEpisodesClick?.let {
@@ -314,10 +303,6 @@ internal fun playerControlActions(
                 icon = Icons.Rounded.Flag,
             )
         },
-        seekPreviewSyncAction()?.let {
-            PlayerControlAction(stringResource(Res.string.cd_seek_preview_sync), it, icon = Icons.Rounded.Tune)
-        },
-
     )
 
 internal data class PlayerControlAction(

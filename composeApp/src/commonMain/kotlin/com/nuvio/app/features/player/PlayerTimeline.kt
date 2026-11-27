@@ -19,6 +19,7 @@ import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,7 +120,6 @@ internal fun PlayerTimeline(
     val isPressed by interactionSource.collectIsPressedAsState()
     val isDragged by interactionSource.collectIsDraggedAsState()
     val isInteracting = enabled && durationMs > 0L && (isPressed || isDragged)
-    val cueIntervalMs = seekPreviewCueIntervalMs()
     val trackThickness by animateDpAsState(
         targetValue = if (isInteracting) 10.dp else 6.dp,
         animationSpec = tween(durationMillis = if (isInteracting) 140 else 180),
@@ -130,7 +130,6 @@ internal fun PlayerTimeline(
     sliderState.value = displayedPositionMs.coerceIn(0L, durationMs).toFloat()
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        SeekPreviewAboveTimeline(displayedPositionMs, durationMs, active = isInteracting)
         Slider(
             state = sliderState,
             onValueChange = { value ->
@@ -184,7 +183,6 @@ internal fun PlayerTimeline(
                                     )
                                 }
                             }
-                            drawSeekPreviewCueTicks(cueIntervalMs, durationMs, trackOrigin.y, trackHeight)
                         },
                 )
             },
@@ -198,13 +196,18 @@ internal fun PlayerTimeline(
     }
 }
 
-/** The name of the chapter at [positionMs], or "Chapter N" when the file gives it none. */
+/**
+ * The name of the chapter at [positionMs], or "Chapter N" when the file gives it none. Hidden when
+ * "Show Chapter Title" is off.
+ */
 @Composable
 internal fun PlayerChapterTitle(
     chapters: List<PlayerChapter>,
     positionMs: Long,
     modifier: Modifier = Modifier,
 ) {
+    val settings by PlayerSettingsRepository.uiState.collectAsState()
+    if (!settings.chapterTitleEnabled) return
     val index = PlayerChapters.indexAt(chapters, positionMs)
     if (index < 0) return
     Text(

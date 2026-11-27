@@ -29,6 +29,7 @@ scripts/build-distribution.sh
 asset
 scripts/scrape_android_compose_animation_docs.py
 tools
+AGENTS.md
 PERFORMANCE_FINDINGS.md
 scripts/*
 !scripts/sign-ios-device-app.py
@@ -36,5 +37,3 @@ iosApp/Configuration/DeviceSigning.local.json
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage
-composeApp/libs/sherpa-onnx-*.aar
-composeApp/libs/sherpa-onnx-*.aar.part

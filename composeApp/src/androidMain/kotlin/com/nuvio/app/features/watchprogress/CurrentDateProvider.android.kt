@@ -6,8 +6,6 @@ import java.time.ZoneId
 actual object CurrentDateProvider {
     actual fun todayIsoDate(): String = LocalDate.now().toString()
 
-    actual fun nowEpochMs(): Long = System.currentTimeMillis()
-
     actual fun localStartOfDayEpochMs(isoDate: String): Long? =
         runCatching {
             LocalDate.parse(isoDate)
