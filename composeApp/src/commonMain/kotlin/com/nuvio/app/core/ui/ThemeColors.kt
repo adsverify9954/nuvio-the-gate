@@ -95,14 +95,18 @@ object ThemeColors {
     )
 
     val Crimson = ThemeColorPalette(
-        secondary = Color(0xFFE53935),
-        secondaryVariant = Color(0xFFC62828),
-        nativeAccentHex = "#E53935",
-        focusRing = Color(0xFFFF5252),
-        focusBackground = Color(0xFF3D1A1A),
-        background = Color(0xFF0D0D0D),
-        backgroundElevated = Color(0xFF1A1A1A),
-        backgroundCard = Color(0xFF241A1A),
+        // Netflix palette — signature red on true black.
+        secondary = Color(0xFFE50914),
+        secondaryVariant = Color(0xFFB20710),
+        accentGradient = listOf(Color(0xFFE50914), Color(0xFFB20710)),
+        nativeAccentHex = "#E50914",
+        onSecondary = Color.White,
+        onSecondaryVariant = Color.White,
+        focusRing = Color(0xFFFF3D3D),
+        focusBackground = Color(0xFF2B0A0C),
+        background = Color(0xFF000000),
+        backgroundElevated = Color(0xFF141414),
+        backgroundCard = Color(0xFF181818),
     )
 
     val Ocean = ThemeColorPalette(
