@@ -39,7 +39,8 @@ fun DetailAdditionalInfoSection(
         meta.status?.let {
             add(stringResource(Res.string.details_status) to localizedMediaStatusLabel(it, isSeriesLike))
         }
-        meta.releaseInfo?.let {
+        // Worker fallback may put the type ("Movie") into releaseInfo — only real dates/years.
+        meta.releaseInfo?.trim()?.takeIf { it.isNotEmpty() && it.any(Char::isDigit) }?.let {
             add(stringResource(Res.string.details_release_info) to formatReleaseDateForDisplay(it))
         }
         formatRuntimeForDisplay(meta.runtime)?.let {
