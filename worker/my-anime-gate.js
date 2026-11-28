@@ -166,11 +166,11 @@ var getPattern = /* @__PURE__ */ __name((label, next) => {
         patternCache[cacheKey] = next && next[0] !== ":" && next[0] !== "*" ? [
           cacheKey,
           match2[1],
-          new RegExp(`^${match2[2]}(?=/${next})`)
+          new RegExp(`^(?:${match2[2]})(?=/${next})`)
         ] : [
           label,
           match2[1],
-          new RegExp(`^${match2[2]}$`)
+          new RegExp(`^(?:${match2[2]})$`)
         ];
       else
         patternCache[cacheKey] = [
@@ -199,7 +199,7 @@ var tryDecode = /* @__PURE__ */ __name((str, decoder) => {
 var decodeURIWithPreservedPercent = /* @__PURE__ */ __name((value) => decodeURI(value.includes("%25") ? value.replace(/%25/g, "%2525") : value), "decodeURIWithPreservedPercent");
 var getPath = /* @__PURE__ */ __name((request) => {
   const url = request.url;
-  const start = url.indexOf("/", url.indexOf(":") + 4);
+  const start = url.charCodeAt(0) === 47 ? 0 : url.indexOf("/", url.indexOf(":") + 4);
   let i = start;
   for (; i < url.length; i++) {
     const charCode = url.charCodeAt(i);
@@ -1420,15 +1420,15 @@ var Hono = /* @__PURE__ */ __name(class Hono2 {
       return this.errorHandler(err, c);
     throw err;
   }
-  #dispatch(request, executionCtx, env, method) {
+  #dispatch(request, executionCtx, env2, method) {
     if (method === "HEAD")
-      return (async () => new Response(null, await this.#dispatch(request, executionCtx, env, "GET")))();
-    const path = this.getPath(request, { env });
+      return (async () => new Response(null, await this.#dispatch(request, executionCtx, env2, "GET")))();
+    const path = this.getPath(request, { env: env2 });
     const matchResult = this.router.match(method, path);
     const c = new Context(request, {
       path,
       matchResult,
-      env,
+      env: env2,
       executionCtx,
       notFoundHandler: this.#notFoundHandler
     });
@@ -1890,11 +1890,13 @@ var Node3 = /* @__PURE__ */ __name(class Node4 {
       if (isParam)
         possibleKeys.add(pattern[1]);
     }
-    curNode.#methods.push({ [method]: {
+    const methodMap = createNullObject();
+    methodMap[method] = {
       handler,
       possibleKeys: [...possibleKeys],
       score: ++order
-    } });
+    };
+    curNode.#methods.push(methodMap);
   }
   #pushHandlerSets(handlerSets, node, method, nodeParams, params) {
     for (let i = 0, len = node.#methods.length; i < len; i++) {
@@ -2036,7 +2038,9 @@ var HOST_HEADERS = {
   ufoload: { Referer: "https://ufoload.io/", Origin: "https://ufoload.io" },
   abyss: { Referer: "https://player.abyssplayer.com/", Origin: "https://player.abyssplayer.com" },
   byse: { Referer: "https://bysetayico.com/", Origin: "https://bysetayico.com" },
-  doodstream: { Referer: "https://doodstream.com/", Origin: "https://doodstream.com" }
+  doodstream: { Referer: "https://doodstream.com/", Origin: "https://doodstream.com" },
+  vidara: { Referer: "https://vidara.to/", Origin: "https://vidara.to" },
+  lulustream: { Referer: "https://lulustream.com/", Origin: "https://lulustream.com" }
 };
 var HOST_FIELD = {
   streamtape: "streamtape_url",
@@ -2046,6 +2050,8 @@ var HOST_FIELD = {
   abyss: "abyss_url",
   byse: "byse_url",
   doodstream: "doodstream_url",
+  vidara: "vidara_url",
+  lulustream: "lulustream_url",
   earnvids: "earnvids_url"
 };
 var HOST_LABEL = {
@@ -2056,9 +2062,11 @@ var HOST_LABEL = {
   abyss: "Abyss",
   byse: "Byse",
   doodstream: "Doodstream",
+  vidara: "Vidara",
+  lulustream: "LuluStream",
   earnvids: "EarnVids"
 };
-var HIDDEN_HOSTS = /* @__PURE__ */ new Set(["abyss", "byse"]);
+var HIDDEN_HOSTS = /* @__PURE__ */ new Set(["abyss"]);
 var DDL_MAIN = `
   CREATE TABLE IF NOT EXISTS media_items (
     id TEXT PRIMARY KEY,
@@ -2080,6 +2088,8 @@ var DDL_MAIN = `
     byse_url TEXT NOT NULL DEFAULT '',
     earnvids_url TEXT NOT NULL DEFAULT '',
     doodstream_url TEXT NOT NULL DEFAULT '',
+    vidara_url TEXT NOT NULL DEFAULT '',
+    lulustream_url TEXT NOT NULL DEFAULT '',
     is_title_only INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -2120,20 +2130,22 @@ var ALTER_COLUMNS = [
   ["media_items", "earnvids_url TEXT NOT NULL DEFAULT ''"],
   ["media_items", "is_title_only INTEGER NOT NULL DEFAULT 0"],
   ["media_items", "doodstream_url TEXT NOT NULL DEFAULT ''"],
+  ["media_items", "vidara_url TEXT NOT NULL DEFAULT ''"],
+  ["media_items", "lulustream_url TEXT NOT NULL DEFAULT ''"],
   ["media_items", "category TEXT NOT NULL DEFAULT ''"],
   ["watchlist", "media_type TEXT NOT NULL DEFAULT ''"],
   ["watchlist", "tmdb_id INTEGER NOT NULL DEFAULT 0"]
 ];
-function userAgent(env) {
-  return env.USER_AGENT || UA_DEFAULT;
+function userAgent(env2) {
+  return env2.USER_AGENT || UA_DEFAULT;
 }
 __name(userAgent, "userAgent");
 function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 __name(escapeHtml, "escapeHtml");
-function headersForHost(env, host) {
-  return { ...HOST_HEADERS[host] ?? {}, "User-Agent": userAgent(env) };
+function headersForHost(env2, host) {
+  return { ...HOST_HEADERS[host] ?? {}, "User-Agent": userAgent(env2) };
 }
 __name(headersForHost, "headersForHost");
 async function fetchText(url, headers = {}, timeoutMs = 15e3) {
@@ -2217,7 +2229,39 @@ async function extractPageTitle(url) {
   }
 }
 __name(extractPageTitle, "extractPageTitle");
+var schemaReady = false;
+var staleCheckAt = 0;
+var staleCached = true;
+var linkMemCache = /* @__PURE__ */ new Map();
+var catalogMemCache = /* @__PURE__ */ new Map();
+async function cachedLink(env2, key2, ttlMs, fn) {
+  const now = Date.now();
+  const mem = linkMemCache.get(key2);
+  if (mem && now - mem.at < ttlMs)
+    return mem.u;
+  try {
+    const row = await env2.DB.prepare("SELECT value FROM sync_state WHERE key=?").bind("lnk:" + key2).first();
+    if (row?.value) {
+      const j = JSON.parse(String(row.value));
+      if (j && typeof j.at === "number" && now - j.at < ttlMs) {
+        linkMemCache.set(key2, { u: j.u ?? null, at: j.at });
+        return j.u ?? null;
+      }
+    }
+  } catch {
+  }
+  const u = await fn().catch(() => null);
+  linkMemCache.set(key2, { u, at: now });
+  try {
+    await env2.DB.prepare("INSERT INTO sync_state (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind("lnk:" + key2, JSON.stringify({ u, at: now })).run();
+  } catch {
+  }
+  return u;
+}
+__name(cachedLink, "cachedLink");
 async function ensureSchema(db) {
+  if (schemaReady)
+    return [];
   const errors = [];
   const single = /* @__PURE__ */ __name(async (label, sql) => {
     try {
@@ -2233,6 +2277,8 @@ async function ensureSchema(db) {
   for (const [table, column] of ALTER_COLUMNS) {
     await single(`alter ${table} + ${column.split(" ")[0]}`, `ALTER TABLE ${table} ADD COLUMN ${column}`);
   }
+  if (errors.every((e) => /already exists|duplicate/i.test(e)))
+    schemaReady = true;
   return errors;
 }
 __name(ensureSchema, "ensureSchema");
@@ -2242,12 +2288,13 @@ function parseFilename(fileName) {
   const ym = clean.match(/\((19\d{2}|20\d{2})\)|(?:\s|^)(19\d{2}|20\d{2})(?:\s|$)/);
   if (ym)
     out.year = parseInt(ym[1] || ym[2], 10);
-  const tmdbMatch2 = clean.match(/tmdb[_\s]?(\d+)(?:[_\s\-]?[Ss](\d+)[_\s\-]?[Ee](\d+))?/);
+  const tmdbMatch2 = clean.match(/tmdb[_\s]?(\d+)/);
   if (tmdbMatch2) {
     out.tmdbId = parseInt(tmdbMatch2[1], 10);
-    if (tmdbMatch2[2] != null && tmdbMatch2[3] != null) {
-      out.season = parseInt(tmdbMatch2[2], 10);
-      out.episode = parseInt(tmdbMatch2[3], 10);
+    const se = clean.match(/[Ss](\d{1,2})[_\s\-]?[Ee](\d{1,3})/);
+    if (se) {
+      out.season = parseInt(se[1], 10);
+      out.episode = parseInt(se[2], 10);
     }
     return out;
   }
@@ -2312,8 +2359,8 @@ function titleMatches(query, name, queryYear, resultYear) {
   return false;
 }
 __name(titleMatches, "titleMatches");
-async function tmdbMatch(env, parsed) {
-  const key2 = env.TMDB_API_KEY;
+async function tmdbMatch(env2, parsed) {
+  const key2 = env2.TMDB_API_KEY;
   if (!key2)
     return null;
   const detail = /* @__PURE__ */ __name(async (mediaType, id) => {
@@ -2434,12 +2481,12 @@ function categoryOf(meta) {
   return "tv";
 }
 __name(categoryOf, "categoryOf");
-async function enrichGenres(env, meta) {
+async function enrichGenres(env2, meta) {
   if (meta?.genres?.length || !meta?.tmdbId)
     return;
   try {
     const mt = meta.type === "movie" ? "movie" : "tv";
-    const { ok, json } = await fetchJsonRetry(`https://api.themoviedb.org/3/${mt}/${meta.tmdbId}?api_key=${env.TMDB_API_KEY}&language=en-US`);
+    const { ok, json } = await fetchJsonRetry(`https://api.themoviedb.org/3/${mt}/${meta.tmdbId}?api_key=${env2.TMDB_API_KEY}&language=en-US`);
     if (ok && json) {
       meta.genres = (json.genres || []).map((g) => String(g.name || "")).filter(Boolean);
       meta.originCountry = String(json.origin_country?.[0] || json.production_countries?.[0]?.iso_3166_1 || "");
@@ -2497,9 +2544,9 @@ async function extractVidmoly(inputUrl, pageUrl) {
   return resolveUrl(embedUrl, hls[1]);
 }
 __name(extractVidmoly, "extractVidmoly");
-async function streamtapeApiDirect(env, fileId) {
-  const login = env.STREAMTAPE_USER || env.STREAMTAPE_LOGIN;
-  const key2 = env.STREAMTAPE_KEY;
+async function streamtapeApiDirect(env2, fileId) {
+  const login = env2.STREAMTAPE_USER || env2.STREAMTAPE_LOGIN;
+  const key2 = env2.STREAMTAPE_KEY;
   if (!login || !key2 || !/^[A-Za-z0-9]+$/.test(fileId))
     return null;
   const tk = await fetchJson(`https://api.streamtape.com/file/dlticket?file=${encodeURIComponent(fileId)}&login=${encodeURIComponent(login)}&key=${encodeURIComponent(key2)}`);
@@ -2522,16 +2569,16 @@ async function streamtapeApiDirect(env, fileId) {
   return null;
 }
 __name(streamtapeApiDirect, "streamtapeApiDirect");
-async function extractStreamtape(inputUrl, pageUrl, cookieJar, env) {
+async function extractStreamtape(inputUrl, pageUrl, cookieJar, env2) {
   const embedId = (inputUrl.match(/(?:streamtape\.com)\/(?:e|v|embed)\/([A-Za-z0-9]+)/i) || [])[1] || (pageUrl ? (pageUrl.match(/(?:streamtape\.com)\/(?:e|v|embed)\/([A-Za-z0-9]+)/i) || [])[1] : null);
   const pageUrls = embedId ? [
     `https://streamtape.com/e/${embedId}`,
     `https://stape.io/e/${embedId}`,
     `https://streamtape.com/v/${embedId}`
   ] : [pageUrl || inputUrl];
-  if (embedId && env) {
+  if (embedId && env2) {
     try {
-      const apiDirect = await streamtapeApiDirect(env, embedId);
+      const apiDirect = await streamtapeApiDirect(env2, embedId);
       if (apiDirect)
         return apiDirect;
     } catch {
@@ -2668,8 +2715,8 @@ function fixRel(u) {
   return u;
 }
 __name(fixRel, "fixRel");
-async function listUfoloadUploads(env) {
-  const key2 = env.UFOLOAD_API_KEY || env.UFOLOAD_KEY;
+async function listUfoloadUploads(env2) {
+  const key2 = env2.UFOLOAD_API_KEY || env2.UFOLOAD_KEY;
   if (!key2)
     return [];
   const out = [];
@@ -2706,8 +2753,8 @@ async function listUfoloadUploads(env) {
   return out;
 }
 __name(listUfoloadUploads, "listUfoloadUploads");
-async function listEarnvidsUploads(env) {
-  const key2 = env.EARNVIDS_API_KEY;
+async function listEarnvidsUploads(env2) {
+  const key2 = env2.EARNVIDS_API_KEY;
   if (!key2)
     return [];
   const out = [];
@@ -2742,7 +2789,7 @@ async function listEarnvidsUploads(env) {
   return out;
 }
 __name(listEarnvidsUploads, "listEarnvidsUploads");
-async function listDoodstreamUploads(env) {
+async function listDoodstreamUploads(env2) {
   return [];
   const out = [];
   const seen = /* @__PURE__ */ new Set();
@@ -2805,8 +2852,8 @@ async function listDoodstreamUploads(env) {
   return out;
 }
 __name(listDoodstreamUploads, "listDoodstreamUploads");
-async function earnvidsDirectLink(env, code, ip) {
-  const key2 = env.EARNVIDS_API_KEY;
+async function earnvidsDirectLink(env2, code, ip) {
+  const key2 = env2.EARNVIDS_API_KEY;
   if (!key2 || !code)
     return null;
   const cacheKey = new Request(`https://earnvids-link.internal/${code}/${ip || "any"}`);
@@ -2848,13 +2895,13 @@ function nameFastIdOf(fileName) {
   return p.tmdbId + ":" + (p.season != null ? "series" : "movie") + ":" + (p.season ?? 0) + ":" + (p.episode ?? 0);
 }
 __name(nameFastIdOf, "nameFastIdOf");
-async function updateHostUrl(env, rowId, host, url) {
+async function updateHostUrl(env2, rowId, host, url) {
   const field = HOST_FIELD[host];
   if (!field || !url)
     return;
   try {
-    await env.DB.prepare(
-      `UPDATE media_items SET ${field}=?, updated_at=datetime('now') WHERE id=? AND ${field}<>?`
+    await env2.DB.prepare(
+      `UPDATE media_items SET ${field}=?, is_active=1, updated_at=datetime('now') WHERE id=? AND ${field}<>?`
     ).bind(url, rowId, url).run();
   } catch (e) {
     console.log("url update failed", host, String(e).slice(0, 100));
@@ -2890,11 +2937,11 @@ async function filemoonDirectLink(host, apiBase, apiKey, code, ip) {
   return link;
 }
 __name(filemoonDirectLink, "filemoonDirectLink");
-async function doodstreamDirectLink(env, code, ip, originHintUrl) {
+async function doodstreamDirectLink(env2, code, ip, originHintUrl) {
   const api = await filemoonDirectLink(
     "doodstream",
     "https://doodstream.com",
-    env.DOODSTREAM_API_KEY || "",
+    env2.DOODSTREAM_API_KEY || "",
     code,
     ip
   ).catch(() => null);
@@ -2905,10 +2952,10 @@ async function doodstreamDirectLink(env, code, ip, originHintUrl) {
     originHint = new URL(originHintUrl).origin;
   } catch {
   }
-  return extractDoodstreamEmbed(env, code, originHint);
+  return extractDoodstreamEmbed(env2, code, originHint);
 }
 __name(doodstreamDirectLink, "doodstreamDirectLink");
-async function extractDoodstreamEmbed(env, code, originHint) {
+async function extractDoodstreamEmbed(env2, code, originHint) {
   const origins = [originHint, "https://doodstream.com"].filter(Boolean);
   const candidates = [];
   for (const origin of origins) {
@@ -2917,7 +2964,7 @@ async function extractDoodstreamEmbed(env, code, originHint) {
   }
   for (const pageUrl of candidates) {
     const { ok, text } = await fetchText(pageUrl, {
-      "User-Agent": userAgent(env),
+      "User-Agent": userAgent(env2),
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.9",
       Referer: "https://doodstream.com/",
@@ -2947,6 +2994,99 @@ async function extractDoodstreamEmbed(env, code, originHint) {
   return null;
 }
 __name(extractDoodstreamEmbed, "extractDoodstreamEmbed");
+async function extractVixeo(inputUrl) {
+  const m = String(inputUrl).match(/https?:\/\/(?:www\.)?(vixeo\.io|vidsonic\.net)\/(?:e|d|v|p)\/([A-Za-z0-9]+)/i);
+  if (!m)
+    return null;
+  const host = m[1].toLowerCase();
+  const id = m[2];
+  const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+  for (const page of [`https://${host}/e/${id}`, `https://${host}/embed/${id}`]) {
+    try {
+      const r = await fetchText(page, { Referer: `https://${host}/`, "User-Agent": ua }, 2e4);
+      if (!r.ok || !r.text)
+        continue;
+      const b64 = r.text.match(/data-config="([A-Za-z0-9+/=]+)"/)?.[1];
+      if (!b64)
+        continue;
+      let cfg = null;
+      try {
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++)
+          bytes[i] = bin.charCodeAt(i);
+        cfg = JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        continue;
+      }
+      const src = String(cfg?.source || "");
+      if (!src)
+        continue;
+      let joined = "";
+      let ok = true;
+      for (const part of src.split("|")) {
+        for (let i = 0; i + 1 < part.length; i += 2) {
+          const code = parseInt(part.slice(i, i + 2), 16);
+          if (!Number.isFinite(code)) {
+            ok = false;
+            break;
+          }
+          joined += String.fromCharCode(code);
+        }
+        if (!ok)
+          break;
+      }
+      if (!ok || !joined)
+        continue;
+      const direct = joined.split("").reverse().join("");
+      if (/^https?:\/\//i.test(direct))
+        return direct;
+    } catch {
+    }
+  }
+  return null;
+}
+__name(extractVixeo, "extractVixeo");
+async function extractVidara(inputUrl) {
+  const m = String(inputUrl).match(/\/(?:e|v)\/([A-Za-z0-9]+)|\/([A-Za-z0-9]{8,20})\/?(?:[?#]|$)/);
+  if (!m)
+    return null;
+  const id = String(m[1] || m[2] || "");
+  if (!id)
+    return null;
+  const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+  const body = JSON.stringify({ filecode: id, device: "desktop", codecs: ["h264", "h265", "av1"] });
+  const bases = ["https://vidara.to"];
+  try {
+    const page = await fetchText(`https://vidara.to/e/${id}`, { Referer: "https://vidara.to/", "User-Agent": ua }, 15e3);
+    const mirror = page.ok ? page.text.match(/MIRROR\s*=\s*['"](https?:\/\/[^'"]+)['"]/)?.[1] : "";
+    if (mirror) {
+      try {
+        bases.push(new URL(mirror).origin);
+      } catch {
+      }
+    }
+  } catch {
+  }
+  for (const base of Array.from(new Set(bases))) {
+    try {
+      const res = await fetch(`${base}/api/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Referer: `${base}/e/${id}`, "User-Agent": ua, Accept: "application/json" },
+        body
+      });
+      if (!res.ok)
+        continue;
+      const j = await res.json().catch(() => null);
+      const direct = String(j?.streaming_url || "");
+      if (/^https?:\/\//i.test(direct))
+        return direct;
+    } catch {
+    }
+  }
+  return null;
+}
+__name(extractVidara, "extractVidara");
 async function extractUfoload(inputUrl, pageUrl) {
   const embedId = (inputUrl.match(/(?:ufoload\.io)\/(?:v|e|embed)\/([A-Za-z0-9]+)/i) || [])[1] || (pageUrl ? (pageUrl.match(/(?:ufoload\.io)\/(?:v|e|embed)\/([A-Za-z0-9]+)/i) || [])[1] : null);
   const resolvedPage = embedId ? `https://ufoload.io/v/${embedId}` : pageUrl || inputUrl;
@@ -2959,15 +3099,15 @@ async function extractUfoload(inputUrl, pageUrl) {
   return resolveUrl(resolvedPage, direct[0]);
 }
 __name(extractUfoload, "extractUfoload");
-async function listStreamtape(env) {
-  const login = env.STREAMTAPE_USER || env.STREAMTAPE_LOGIN;
-  if (!login || !env.STREAMTAPE_KEY)
+async function listStreamtape(env2) {
+  const login = env2.STREAMTAPE_USER || env2.STREAMTAPE_LOGIN;
+  if (!login || !env2.STREAMTAPE_KEY)
     return [];
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   const call = /* @__PURE__ */ __name(async (folder) => {
     for (const api of ["https://api.streamtape.com/file/listfolder", "https://api.streamtape.to/file/listfolder"]) {
-      const qs = `login=${encodeURIComponent(login)}&key=${encodeURIComponent(env.STREAMTAPE_KEY || "")}`;
+      const qs = `login=${encodeURIComponent(login)}&key=${encodeURIComponent(env2.STREAMTAPE_KEY || "")}`;
       const r = await fetchJson(`${api}?${qs}${folder ? "&folder=" + encodeURIComponent(folder) : ""}`, { Referer: "https://streamtape.com/" });
       if (r.ok && r.json?.status === 200)
         return r.json;
@@ -2994,27 +3134,160 @@ async function listStreamtape(env) {
   if (!root)
     return [];
   collect(root);
-  const folders = root?.result?.folders || [];
-  if (folders.length) {
-    const start = (/* @__PURE__ */ new Date()).getUTCMinutes() % folders.length;
-    for (let i = 0; i < Math.min(2, folders.length); i++) {
-      const folder = folders[(start + i) % folders.length];
-      const fid = folder?.id;
-      if (!fid)
-        continue;
-      const j = await call(String(fid));
-      if (j)
-        collect(j);
+  let queue = [];
+  let cursor = 0;
+  try {
+    const rows = await env2.DB.prepare(
+      "SELECT key, value FROM sync_state WHERE key IN ('st_folder_queue','st_folder_cursor')"
+    ).all();
+    const m = /* @__PURE__ */ new Map();
+    for (const r of rows.results || [])
+      m.set(String(r.key), String(r.value));
+    try {
+      const q = JSON.parse(m.get("st_folder_queue") || "[]");
+      if (Array.isArray(q))
+        queue = q.map(String).filter(Boolean);
+    } catch {
     }
+    cursor = parseInt(m.get("st_folder_cursor") || "0", 10) || 0;
+  } catch {
+  }
+  const known = new Set(queue);
+  for (const fo of root?.result?.folders || []) {
+    const id = String(fo?.id || "");
+    if (id && !known.has(id)) {
+      queue.push(id);
+      known.add(id);
+    }
+  }
+  const SCAN = Math.min(3, queue.length);
+  for (let i = 0; i < SCAN; i++) {
+    const idx = (cursor + i) % queue.length;
+    const j = await call(queue[idx]);
+    if (!j)
+      continue;
+    collect(j);
+    for (const sf of j?.result?.folders || []) {
+      const sid = String(sf?.id || "");
+      if (sid && !known.has(sid)) {
+        queue.push(sid);
+        known.add(sid);
+      }
+    }
+  }
+  cursor = queue.length ? (cursor + SCAN) % queue.length : 0;
+  if (queue.length > 400)
+    queue = queue.slice(0, 400);
+  try {
+    await env2.DB.batch([
+      env2.DB.prepare(
+        "INSERT INTO sync_state (key,value) VALUES ('st_folder_queue',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+      ).bind(JSON.stringify(queue).slice(0, 12e3)),
+      env2.DB.prepare(
+        "INSERT INTO sync_state (key,value) VALUES ('st_folder_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+      ).bind(String(cursor))
+    ]);
+  } catch {
   }
   return out;
 }
 __name(listStreamtape, "listStreamtape");
-function parseUploadsJson(env) {
-  if (!env.UPLOADS_JSON || !env.UPLOADS_JSON.trim())
+async function luluKey(env2) {
+  if (env2.LULUSTREAM_API_KEY)
+    return String(env2.LULUSTREAM_API_KEY);
+  try {
+    const r = await env2.DB.prepare("SELECT value FROM sync_state WHERE key='cfg:lulu_key'").first();
+    return String(r?.value || "");
+  } catch {
+    return "";
+  }
+}
+__name(luluKey, "luluKey");
+async function byseKey(env2) {
+  try {
+    const r = await env2.DB.prepare("SELECT value FROM sync_state WHERE key='cfg:byse_key'").first();
+    const v = String(r?.value || "");
+    if (v)
+      return v;
+  } catch {
+  }
+  return String(env2.BYSE_API_KEY || "");
+}
+__name(byseKey, "byseKey");
+async function listLulustreamUploads(env2) {
+  const key2 = await luluKey(env2);
+  if (!key2)
+    return [];
+  const out = [];
+  for (let page = 1; page <= 5; page++) {
+    const r = await fetchJson(`https://api.lulustream.com/api/file/list?key=${encodeURIComponent(key2)}&per_page=100&page=${page}`);
+    const files = r.json?.result?.files;
+    if (!Array.isArray(files) || files.length === 0)
+      break;
+    for (const f of files) {
+      const code = String(f.file_code || f.filecode || "");
+      if (!code)
+        continue;
+      out.push({
+        id: code,
+        host: "lulustream",
+        fileName: String(f.title || f.name || ""),
+        size: Number(f.size) || 0,
+        status: 200,
+        pageUrl: `https://lplaygo.com/e/${code}`
+      });
+    }
+    if (files.length < 100)
+      break;
+  }
+  return out;
+}
+__name(listLulustreamUploads, "listLulustreamUploads");
+async function vidaraKey(env2) {
+  if (env2.VIDARA_API_KEY)
+    return String(env2.VIDARA_API_KEY);
+  try {
+    const r = await env2.DB.prepare("SELECT value FROM sync_state WHERE key='cfg:vidara_key'").first();
+    return String(r?.value || "");
+  } catch {
+    return "";
+  }
+}
+__name(vidaraKey, "vidaraKey");
+async function listVidaraUploads(env2) {
+  const key2 = await vidaraKey(env2);
+  if (!key2)
+    return [];
+  const out = [];
+  for (let page = 1; page <= 5; page++) {
+    const r = await fetchJson(`https://api.vidara.so/v1/video/list?api_key=${encodeURIComponent(key2)}&per_page=100&page=${page}`);
+    const vids = r.json?.result?.videos;
+    if (!Array.isArray(vids) || vids.length === 0)
+      break;
+    for (const v of vids) {
+      const code = String(v.filecode || "");
+      if (!code)
+        continue;
+      out.push({
+        id: code,
+        host: "vidara",
+        fileName: String(v.title || ""),
+        size: Number(v.size) || 0,
+        status: 200,
+        pageUrl: `https://vidara.to/${code}`
+      });
+    }
+    if (vids.length < 100)
+      break;
+  }
+  return out;
+}
+__name(listVidaraUploads, "listVidaraUploads");
+function parseUploadsJson(env2) {
+  if (!env2.UPLOADS_JSON || !env2.UPLOADS_JSON.trim())
     return [];
   try {
-    const parsed = JSON.parse(env.UPLOADS_JSON);
+    const parsed = JSON.parse(env2.UPLOADS_JSON);
     if (!Array.isArray(parsed))
       return [];
     return parsed.map((row, i) => {
@@ -3055,6 +3328,10 @@ function detectHost(url) {
     return "earnvids";
   if (/doodstream|dood\.to|doodcdn|doodreels/.test(u))
     return "doodstream";
+  if (/vidara\.to|vidara\.so/.test(u))
+    return "vidara";
+  if (/lulustream|lplaygo/.test(u))
+    return "lulustream";
   return null;
 }
 __name(detectHost, "detectHost");
@@ -3082,13 +3359,13 @@ async function listWatchlist(db) {
   }
 }
 __name(listWatchlist, "listWatchlist");
-async function listAbyssUploads(env) {
-  if (!env.ABYSS_API_KEY)
+async function listAbyssUploads(env2) {
+  if (!env2.ABYSS_API_KEY)
     return [];
   const out = [];
   let pageToken = "";
   for (let i = 0; i < 5; i++) {
-    let u = "https://api.abyss.to/v1/resources?key=" + env.ABYSS_API_KEY + "&type=files&maxResults=100";
+    let u = "https://api.abyss.to/v1/resources?key=" + env2.ABYSS_API_KEY + "&type=files&maxResults=100";
     if (pageToken)
       u += "&pageToken=" + encodeURIComponent(pageToken);
     try {
@@ -3119,10 +3396,11 @@ async function listAbyssUploads(env) {
   return out;
 }
 __name(listAbyssUploads, "listAbyssUploads");
-async function listByseUploads(env) {
-  if (!env.BYSE_API_KEY)
+async function listByseUploads(env2) {
+  const bkeyRaw = await byseKey(env2);
+  if (!bkeyRaw)
     return [];
-  const key2 = encodeURIComponent(env.BYSE_API_KEY);
+  const key2 = encodeURIComponent(bkeyRaw);
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   const pushFile = /* @__PURE__ */ __name((f) => {
@@ -3180,16 +3458,16 @@ async function listByseUploads(env) {
   return out;
 }
 __name(listByseUploads, "listByseUploads");
-async function mixdropListFolder(env, folderId) {
-  const E = encodeURIComponent(env.MIXDROP_EMAIL);
-  const K = encodeURIComponent(env.MIXDROP_KEY);
+async function mixdropListFolder(env2, folderId) {
+  const E = encodeURIComponent(env2.MIXDROP_EMAIL);
+  const K = encodeURIComponent(env2.MIXDROP_KEY);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const { ok, status, json } = await fetchJson("https://api.mixdrop.ag/folderlist?email=" + E + "&key=" + K + "&id=" + folderId + "&page=1", {}, 8e3);
       if (!ok || !json?.success) {
         if (status === 403) {
           try {
-            await env.DB.prepare("INSERT INTO sync_state (key,value) VALUES ('mxcooldown',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(Date.now())).run();
+            await env2.DB.prepare("INSERT INTO sync_state (key,value) VALUES ('mxcooldown',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(Date.now())).run();
           } catch {
           }
           return { folders: [], files: [] };
@@ -3219,11 +3497,11 @@ async function mixdropListFolder(env, folderId) {
   return { folders: [], files: [] };
 }
 __name(mixdropListFolder, "mixdropListFolder");
-async function listMixdropUploads(env, db, cache) {
-  if (!env.MIXDROP_EMAIL || !env.MIXDROP_KEY)
+async function listMixdropUploads(env2, db, cache) {
+  if (!env2.MIXDROP_EMAIL || !env2.MIXDROP_KEY)
     return [];
   const out = [];
-  const root = await mixdropListFolder(env, "0");
+  const root = await mixdropListFolder(env2, "0");
   if (root.folders.length === 0 && root.files.length === 0)
     return out;
   let cursor = 0;
@@ -3249,22 +3527,26 @@ async function listMixdropUploads(env, db, cache) {
     const fid = String(folder.id);
     const ftitle = String(folder.title || "").trim();
     const generic = /movie|remote|subtitle/i.test(ftitle);
-    let tmdbId = cache.get("mdfolder:" + fid) ?? null;
+    let tmdbId = cache.get("mdfolder2:" + fid) ?? null;
     if (tmdbId == null && !generic) {
       const parsedF = parseFilename(ftitle);
       if (parsedF.title) {
-        const meta = await tmdbMatch(env, parsedF).catch(() => null);
+        const meta = await tmdbMatch(env2, {
+          ...parsedF,
+          season: parsedF.season ?? 1,
+          episode: parsedF.episode ?? 1
+        }).catch(() => null);
         if (meta) {
           tmdbId = meta.tmdbId;
-          cache.set("mdfolder:" + fid, tmdbId);
+          cache.set("mdfolder2:" + fid, tmdbId);
         }
       }
     }
-    const main = await mixdropListFolder(env, fid);
+    const main = await mixdropListFolder(env2, fid);
     const allFiles = [...main.files];
     for (const sf of main.folders) {
       await new Promise((r) => setTimeout(r, 250));
-      const sub = await mixdropListFolder(env, String(sf.id));
+      const sub = await mixdropListFolder(env2, String(sf.id));
       allFiles.push(...sub.files);
     }
     allFiles.sort((a, b) => Number(b.added || 0) - Number(a.added || 0));
@@ -3278,9 +3560,14 @@ async function listMixdropUploads(env, db, cache) {
       const title = String(f.title || "");
       let fileName;
       if (tmdbId != null) {
-        const ep = title.match(/[Ss](\d{1,2})[._\- ]?[Ee](\d{1,3})/) ?? title.match(/\b(?:Ep?|Episode)\s*[.#_-]?\s*(\d{1,3})\b/i);
+        const ep = title.match(/[Ss](\d{1,2})[._\- ]?[Ee](\d{1,3})/);
+        const epAlt = ep ? null : title.match(/\b(?:Ep?|Episode)\s*[.#_-]?\s*(\d{1,3})\b/i);
         if (ep) {
-          const epNum = parseInt(ep[1], 10);
+          const seNum = parseInt(ep[1], 10) || 1;
+          const epNum = parseInt(ep[2], 10) || 1;
+          fileName = "tmdb_" + tmdbId + "_S" + String(seNum).padStart(2, "0") + "E" + String(epNum).padStart(2, "0") + ".mp4";
+        } else if (epAlt) {
+          const epNum = parseInt(epAlt[1], 10) || 1;
           fileName = "tmdb_" + tmdbId + "_S01E" + String(epNum).padStart(2, "0") + ".mp4";
         } else {
           fileName = "tmdb_" + tmdbId + ".mp4";
@@ -3309,22 +3596,8 @@ async function listMixdropUploads(env, db, cache) {
 }
 __name(listMixdropUploads, "listMixdropUploads");
 var lastSyncErrors = [];
-var NOISE_PREFIXES = ["debug:", "scan-cap", "budget:", "processed-cap", "skip-not-ready"];
-function realSyncErrors() {
-  return lastSyncErrors.filter((x) => !NOISE_PREFIXES.some((p) => String(x).startsWith(p)));
-}
-function cleanReleaseTags(name) {
-  let s = String(name || "").replace(/^thumb[_\-\s.]+/i, "").replace(/\.(mp4|mkv|avi|webm|ts|m4v|jpe?g|png|webp)$/i, "");
-  s = s.replace(/^[\s._-]*[\(\[\{][^\)\]\}]{1,40}[\)\]\}][\s._-]*-?[\s._-]*/g, " ");
-  s = s.replace(/[\(\[\{][^\)\]\}]{1,40}[\)\]\}]/g, (m) => /(19|20)\d{2}/.test(m) ? m : " ");
-  s = s.replace(/\b(mkvcine[a-z.]*|cinevood|bollyflix|hdhub4u|vegamovies|filmyzilla|katmoviehd|9xmovies|mkvcinemas|filmyfly|moviesflix|skymovieshd|tamilblasters|1tamilmv|movierulz|hdmoviehub)\b/gi, " ");
-  s = s.replace(/\b(full movie|dubbed movie|south hindi|hindi dubbed|full|hqcam|hdcam|camrip|predvd|pre-dvd)\b/gi, " ");
-  s = s.replace(/\s+/g, " ").trim();
-  return s || String(name || "");
-}
-
-async function runSync(env) {
-  const db = env.DB;
+async function runSync(env2) {
+  const db = env2.DB;
   lastSyncErrors = [];
   await ensureSchema(db);
   try {
@@ -3337,12 +3610,12 @@ async function runSync(env) {
   let budget = 20;
   const mdCache = /* @__PURE__ */ new Map();
   try {
-    const cacheRows = await db.prepare("SELECT key, value FROM sync_state WHERE key LIKE 'mdfolder:%'").all();
+    const cacheRows = await db.prepare("SELECT key, value FROM sync_state WHERE key LIKE 'mdfolder%'").all();
     for (const r of cacheRows.results || [])
       mdCache.set(r.key, parseInt(r.value, 10) || 0);
   } catch {
   }
-  const LISTING_CACHE_MS = 3 * 60 * 1e3;
+  const LISTING_CACHE_MS = 5 * 60 * 1e3;
   const uploads = [];
   let listingFromCache = false;
   let syncCursor = 0;
@@ -3378,7 +3651,7 @@ async function runSync(env) {
   const GROUPS = [
     ["streamtape"],
     ["mixdrop"],
-    ["ufoload", "abyss", "byse", "earnvids", "doodstream"]
+    ["ufoload", "abyss", "byse", "earnvids", "doodstream", "vidara", "lulustream"]
   ];
   const groupNames = ["streamtape", "mixdrop", "rest"];
   let groupIdx = listingFromCache ? listCursor % GROUPS.length : -1;
@@ -3392,7 +3665,7 @@ async function runSync(env) {
     for (const host of g) {
       try {
         if (host === "streamtape")
-          fresh.push(...await listStreamtape(env));
+          fresh.push(...await listStreamtape(env2));
         else if (host === "mixdrop") {
           let mxAllowed = true;
           try {
@@ -3402,17 +3675,21 @@ async function runSync(env) {
           } catch {
           }
           if (mxAllowed)
-            fresh.push(...await listMixdropUploads(env, db, mdCache));
+            fresh.push(...await listMixdropUploads(env2, db, mdCache));
         } else if (host === "ufoload")
-          fresh.push(...await listUfoloadUploads(env));
+          fresh.push(...await listUfoloadUploads(env2));
         else if (host === "abyss")
-          fresh.push(...await listAbyssUploads(env));
+          fresh.push(...await listAbyssUploads(env2));
         else if (host === "byse")
-          fresh.push(...await listByseUploads(env));
+          fresh.push(...await listByseUploads(env2));
         else if (host === "earnvids")
-          fresh.push(...await listEarnvidsUploads(env));
+          fresh.push(...await listEarnvidsUploads(env2));
         else if (host === "doodstream")
-          fresh.push(...await listDoodstreamUploads(env));
+          fresh.push(...await listDoodstreamUploads(env2));
+        else if (host === "vidara")
+          fresh.push(...await listVidaraUploads(env2));
+        else if (host === "lulustream")
+          fresh.push(...await listLulustreamUploads(env2));
       } catch (e) {
         lastSyncErrors.push("group-list " + host + ": " + String(e).slice(0, 80));
       }
@@ -3430,7 +3707,7 @@ async function runSync(env) {
         mxAllowed = false;
     } catch {
     }
-    const allUploads = [...await listDoodstreamUploads(env), ...parseUploadsJson(env), ...await listStreamtape(env), ...mxAllowed ? await listMixdropUploads(env, db, mdCache) : [], ...await listAbyssUploads(env), ...await listByseUploads(env), ...await listUfoloadUploads(env), ...await listEarnvidsUploads(env)];
+    const allUploads = [...await listDoodstreamUploads(env2), ...parseUploadsJson(env2), ...await listStreamtape(env2), ...mxAllowed ? await listMixdropUploads(env2, db, mdCache) : [], ...await listAbyssUploads(env2), ...await listByseUploads(env2), ...await listUfoloadUploads(env2), ...await listEarnvidsUploads(env2), ...await listVidaraUploads(env2), ...await listLulustreamUploads(env2)];
     const seenUp = /* @__PURE__ */ new Set();
     for (const u of allUploads) {
       if (!u.pageUrl || seenUp.has(u.pageUrl))
@@ -3442,7 +3719,7 @@ async function runSync(env) {
   try {
     const stmts0 = db.prepare("INSERT INTO sync_state (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value");
     await db.batch([
-      stmts0.bind("uploads_cache", JSON.stringify(uploads).slice(0, 9e5)),
+      stmts0.bind("uploads_cache", JSON.stringify(uploads).slice(0, 6e4)),
       stmts0.bind("uploads_cache_at", (/* @__PURE__ */ new Date()).toISOString()),
       stmts0.bind("list_cursor", String(listingFromCache ? listCursor + 1 : 0))
     ]);
@@ -3478,11 +3755,11 @@ async function runSync(env) {
   }
   const DIRECT_URL_HOSTS = /* @__PURE__ */ new Set(["vidmoly", "ufoload"]);
   const REFRESH_AFTER_MS = 6 * 60 * 60 * 1e3;
-  const STABLE_URL_HOSTS = /* @__PURE__ */ new Set(["streamtape", "mixdrop", "abyss", "byse", "earnvids"]);
-  const PAGE_URL_HOSTS = /* @__PURE__ */ new Set(["streamtape", "mixdrop", "ufoload", "abyss", "byse", "earnvids"]);
+  const STABLE_URL_HOSTS = /* @__PURE__ */ new Set(["streamtape", "mixdrop", "abyss", "byse", "earnvids", "vidara", "lulustream"]);
+  const PAGE_URL_HOSTS = /* @__PURE__ */ new Set(["streamtape", "mixdrop", "ufoload", "abyss", "byse", "earnvids", "vidara", "lulustream"]);
   let ingested = 0;
   let processedThisRun = 0;
-  const MAX_PROCESSED_PER_RUN = 30;
+  const MAX_PROCESSED_PER_RUN = 5;
   const stmts = [];
   const markIngested = /* @__PURE__ */ __name((pageUrl, id, ref) => {
     if (!pageUrl)
@@ -3496,17 +3773,27 @@ async function runSync(env) {
   if (uploads.length)
     syncCursor = syncCursor % uploads.length;
   const rotatedUploads = uploads.length ? [...uploads.slice(syncCursor), ...uploads.slice(0, syncCursor)] : uploads;
+  const deadRefs = /* @__PURE__ */ new Set();
+  try {
+    const drRows = await db.prepare("SELECT key FROM sync_state WHERE key LIKE 'deadref:%'").all();
+    for (const r of drRows.results || [])
+      deadRefs.add(String(r.key));
+  } catch {
+  }
+  const deadKeyOf = /* @__PURE__ */ __name((host, url) => {
+    const m = host === "streamtape" ? url.match(/\/(?:e|v|f|file)\/([A-Za-z0-9]+)/)?.[1] || "" : host === "mixdrop" ? url.match(/\/(?:e|f|v)\/([A-Za-z0-9]+)/)?.[1] || url.match(/\/v2\/([A-Za-z0-9]+)\.mp4/)?.[1] || "" : host === "ufoload" ? url.match(/\/files\/([A-Za-z0-9]+)/)?.[1] || "" : host === "vidara" ? url.match(/vidara\.to\/([A-Za-z0-9]+)/)?.[1] || "" : "";
+    return m ? `deadref:${host}:${m}` : "";
+  }, "deadKeyOf");
   let examined = 0;
   for (const upload of rotatedUploads) {
-    const fnameRaw = String(upload.fileName || "");
-    if (/\.(jpe?g|png|webp|gif|bmp|srt|vtt|ass|nfo|txt)$/i.test(fnameRaw) || /^thumb[_\-\s.]/i.test(fnameRaw)) {
-      continue;
-    }
     if (examined >= 120) {
       lastSyncErrors.push("scan-cap: 120 \u2014 next run continue karega");
       break;
     }
     examined++;
+    const deadKey = deadKeyOf(String(upload.host || ""), String(upload.pageUrl || ""));
+    if (deadKey && deadRefs.has(deadKey))
+      continue;
     if (budget < 3) {
       lastSyncErrors.push("budget: pausing \u2014 next run continue karega");
       break;
@@ -3528,7 +3815,7 @@ async function runSync(env) {
       }
       console.log("re-ingest upload", upload.pageUrl, "marker:", marker, "newRef:", uploadRef);
     }
-    let effectiveName = cleanReleaseTags(String(upload.fileName || ""));
+    let effectiveName = String(upload.fileName || "");
     const directUrlFresh = DIRECT_URL_HOSTS.has(upload.host) && (hostCheckedAt.get(upload.pageUrl) ?? 0) > Date.now() - REFRESH_AFTER_MS;
     if ((upload.host === "vidmoly" || upload.host === "ufoload") && budget > 8 && !directUrlFresh) {
       budget--;
@@ -3544,7 +3831,7 @@ async function runSync(env) {
       fastId = parsed.tmdbId + ":" + fastType + ":" + (parsed.season ?? 0) + ":" + (parsed.episode ?? 0);
       if (existingIds.has(fastId) && !directUrlFresh) {
         if (PAGE_URL_HOSTS.has(upload.host) && upload.pageUrl) {
-          await updateHostUrl(env, fastId, upload.host, upload.pageUrl);
+          await updateHostUrl(env2, fastId, upload.host, upload.pageUrl);
         }
         if (fastType === "series" && /anime/i.test(String(upload.fileName || ""))) {
           try {
@@ -3565,7 +3852,7 @@ async function runSync(env) {
       if (ready) {
         budget--;
         try {
-          directUrl = await extractStreamtape(upload.pageUrl, void 0, void 0, env);
+          directUrl = await extractStreamtape(upload.pageUrl, void 0, void 0, env2);
         } catch (e) {
           directUrl = null;
           const es = String(e);
@@ -3573,7 +3860,15 @@ async function runSync(env) {
             lastSyncErrors.push("streamtape: " + es.slice(0, 120));
         }
       }
-    } else if (upload.host === "abyss" || upload.host === "byse" || upload.host === "ufoload" || upload.host === "earnvids") {
+    } else if (upload.host === "abyss" || upload.host === "byse" || upload.host === "ufoload" || upload.host === "earnvids" || upload.host === "mixdrop") {
+      valid = Boolean(upload.pageUrl);
+      ready = valid;
+      directUrl = upload.pageUrl;
+    } else if (upload.host === "vidara") {
+      valid = Boolean(upload.pageUrl);
+      ready = valid;
+      directUrl = upload.pageUrl;
+    } else if (upload.host === "lulustream") {
       valid = Boolean(upload.pageUrl);
       ready = valid;
       directUrl = upload.pageUrl;
@@ -3607,43 +3902,51 @@ async function runSync(env) {
       lastSyncErrors.push("skip-not-ready: " + upload.host + ":" + upload.fileName.slice(0, 40));
       continue;
     }
-    let meta = null;
-    try {
-      meta = await tmdbMatch(env, parsed);
-    } catch (e) {
-      lastSyncErrors.push("tmdb-err: " + String(e).slice(0, 80));
-      break;
-    }
+    const meta = await tmdbMatch(env2, parsed);
     if (!meta) {
       lastSyncErrors.push("tmdb-miss: " + upload.fileName.slice(0, 60));
-      try {
-        const hostField = HOST_FIELD[upload.host];
-        const cleanTitle = String(parsed.title || "").replace(/[._]+/g, " ").replace(/\s+/g, " ").trim();
-        const ref = fileRefOf(upload.pageUrl) || String(upload.id || "");
-        const isSeries = parsed.season != null;
-        const seed = isSeries ? cleanTitle.toLowerCase() : String(ref);
-        if (hostField && cleanTitle && seed) {
-          let h = 0;
-          for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 900000000;
-          const synthId = 900000000 + h;
-          const rowType = isSeries ? "series" : "movie";
-          const rowId = synthId + ":" + rowType + ":" + (parsed.season ?? 0) + ":" + (parsed.episode ?? 0);
-          const hostUrl = upload.host === "streamtape" || upload.host === "mixdrop" ? upload.pageUrl : (directUrl ?? upload.pageUrl);
-          const sqlIns = "INSERT INTO media_items (id, tmdb_id, type, title, poster, backdrop, overview, rating, season, episode, " + hostField + ", is_title_only, is_active, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,1,1,datetime('now')) ON CONFLICT(id) DO UPDATE SET title=excluded.title, " + hostField + "=excluded." + hostField + ", is_active=1, is_title_only=1, updated_at=datetime('now')";
-          stmts.push(db.prepare(sqlIns).bind(rowId, synthId, rowType, cleanTitle, "", "", "", 0, parsed.season ?? 0, parsed.episode ?? 0, hostUrl));
-          markIngested(upload.pageUrl, "", ref);
-          ingested++;
-          lastSyncErrors.push("title-only: " + cleanTitle.slice(0, 40));
-        }
-      } catch (e) {
-        lastSyncErrors.push("title-only-err: " + String(e).slice(0, 60));
-      }
       continue;
     }
     budget--;
+    if ((upload.host === "vidara" || upload.host === "lulustream" || !/^tmdb_\d+/i.test(String(upload.fileName || ""))) && upload.id) {
+      try {
+        const cleanTitle = String(meta.title || "").replace(/[\\/:*?"<>|\r\n\t]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 70);
+        const se = meta.type === "series" ? `_S${String(meta.season ?? 1).padStart(2, "0")}E${String(meta.episode ?? 1).padStart(2, "0")}` : "";
+        const newName = `tmdb_${meta.tmdbId}_${cleanTitle || "Video"}${se}.mp4`;
+        if (upload.host === "streamtape") {
+          const login = String(env2.STREAMTAPE_USER || env2.STREAMTAPE_LOGIN || "");
+          if (login && env2.STREAMTAPE_KEY) {
+            budget--;
+            await fetchJson(`https://api.streamtape.com/file/rename?file=${encodeURIComponent(String(upload.id))}&login=${encodeURIComponent(login)}&key=${encodeURIComponent(String(env2.STREAMTAPE_KEY))}&name=${encodeURIComponent(newName)}`);
+          }
+        } else if (upload.host === "mixdrop") {
+          const ref = fileRefOf(upload.pageUrl);
+          if (ref && env2.MIXDROP_EMAIL && env2.MIXDROP_KEY) {
+            budget--;
+            await fetchJson(`https://api.mixdrop.ag/filerename?email=${encodeURIComponent(String(env2.MIXDROP_EMAIL))}&key=${encodeURIComponent(String(env2.MIXDROP_KEY))}&ref=${encodeURIComponent(ref)}&title=${encodeURIComponent(newName.replace(/\.mp4$/i, ""))}`);
+          }
+        } else if (upload.host === "lulustream") {
+          const lk = await luluKey(env2);
+          const code = String(upload.id || "");
+          if (lk && code) {
+            budget--;
+            await fetchJson(`https://api.lulustream.com/api/file/edit?key=${encodeURIComponent(lk)}&file_code=${encodeURIComponent(code)}&file_title=${encodeURIComponent(newName)}`);
+          }
+        } else if (upload.host === "vidara") {
+          const vk = await vidaraKey(env2);
+          const code = String(upload.id || "");
+          if (vk && code) {
+            budget--;
+            await fetchJson(`https://api.vidara.so/v1/video/rename?api_key=${encodeURIComponent(vk)}&filecode=${encodeURIComponent(code)}&title=${encodeURIComponent(newName.replace(/\.mp4$/i, ""))}`);
+          }
+        }
+        upload.fileName = newName;
+      } catch {
+      }
+    }
     if ((!Array.isArray(meta.genres) || meta.genres.length === 0) && budget > 8) {
       budget--;
-      await enrichGenres(env, meta);
+      await enrichGenres(env2, meta);
     }
     const rawAnime = /anime/i.test(String(upload.fileName || ""));
     let category = categoryOf(meta);
@@ -3667,10 +3970,10 @@ async function runSync(env) {
       meta.type === "series" ? meta.episode : null,
       rowCategory
     ];
-    const allUrls = ["streamtape", "vidmoly", "mixdrop", "ufoload", "abyss", "byse", "earnvids", "doodstream"].map((h) => h === upload.host ? hostUrl : "");
+    const allUrls = ["streamtape", "vidmoly", "mixdrop", "ufoload", "abyss", "byse", "earnvids", "doodstream", "vidara", "lulustream"].map((h) => h === upload.host ? hostUrl : "");
     stmts.push(db.prepare(
-      `INSERT INTO media_items (id, tmdb_id, type, title, poster, backdrop, overview, rating, season, episode, category, streamtape_url, vidmoly_url, mixdrop_url, ufoload_url, abyss_url, byse_url, earnvids_url, doodstream_url, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `INSERT INTO media_items (id, tmdb_id, type, title, poster, backdrop, overview, rating, season, episode, category, streamtape_url, vidmoly_url, mixdrop_url, ufoload_url, abyss_url, byse_url, earnvids_url, doodstream_url, vidara_url, lulustream_url, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
        ON CONFLICT(id) DO UPDATE SET
          title=excluded.title, poster=excluded.poster, backdrop=excluded.backdrop, overview=excluded.overview, rating=excluded.rating,
          season=COALESCE(excluded.season, media_items.season), episode=COALESCE(excluded.episode, media_items.episode),
@@ -3683,15 +3986,17 @@ async function runSync(env) {
          byse_url=COALESCE(nullif(excluded.byse_url,''), media_items.byse_url),
          earnvids_url=COALESCE(nullif(excluded.earnvids_url,''), media_items.earnvids_url),
          doodstream_url=COALESCE(nullif(excluded.doodstream_url,''), media_items.doodstream_url),
+         vidara_url=COALESCE(nullif(excluded.vidara_url,''), media_items.vidara_url),
+         lulustream_url=COALESCE(nullif(excluded.lulustream_url,''), media_items.lulustream_url),
          is_active=1, updated_at=datetime('now')`
-    ).bind(...baseVals, allUrls[0], allUrls[1], allUrls[2], allUrls[3], allUrls[4], allUrls[5], allUrls[6], allUrls[7]));
+    ).bind(...baseVals, allUrls[0], allUrls[1], allUrls[2], allUrls[3], allUrls[4], allUrls[5], allUrls[6], allUrls[7], allUrls[8], allUrls[9]));
     ingested++;
     processedThisRun++;
     markIngested(upload.pageUrl, id, uploadRef);
   }
   if (stmts.length > 0) {
     stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind((/* @__PURE__ */ new Date()).toISOString()));
-    stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(realSyncErrors()).slice(0, 4e3)));
+    stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(lastSyncErrors).slice(0, 4e3)));
     stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('sync_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(uploads.length ? (syncCursor + examined) % uploads.length : 0)));
     try {
       await db.batch(stmts);
@@ -3702,7 +4007,7 @@ async function runSync(env) {
     try {
       await db.batch([
         db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind((/* @__PURE__ */ new Date()).toISOString()),
-        db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(realSyncErrors()).slice(0, 4e3)),
+        db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(lastSyncErrors).slice(0, 4e3)),
         db.prepare("INSERT INTO sync_state (key,value) VALUES ('sync_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(uploads.length ? (syncCursor + examined) % uploads.length : 0))
       ]);
     } catch (e) {
@@ -3710,10 +4015,11 @@ async function runSync(env) {
     }
   }
   const cleanup = [];
-  cleanup.push(db.prepare("UPDATE media_items SET is_active=0, updated_at=datetime('now') WHERE streamtape_url='' AND vidmoly_url='' AND mixdrop_url='' AND ufoload_url='' AND abyss_url='' AND byse_url='' AND earnvids_url='' AND doodstream_url='' AND is_title_only=0"));
+  cleanup.push(db.prepare("UPDATE media_items SET is_active=0, updated_at=datetime('now') WHERE streamtape_url='' AND vidmoly_url='' AND mixdrop_url='' AND ufoload_url='' AND abyss_url='' AND byse_url='' AND earnvids_url='' AND doodstream_url='' AND vidara_url='' AND lulustream_url='' AND is_title_only=0"));
+  cleanup.push(db.prepare("UPDATE media_items SET is_active=1, updated_at=datetime('now') WHERE is_active=0 AND is_title_only=0 AND (streamtape_url<>'' OR vidmoly_url<>'' OR mixdrop_url<>'' OR ufoload_url<>'' OR abyss_url<>'' OR byse_url<>'' OR earnvids_url<>'' OR doodstream_url<>'' OR vidara_url<>'')"));
   cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind((/* @__PURE__ */ new Date()).toISOString()));
   cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncCount',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(ingested)));
-  cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(realSyncErrors()).slice(0, 4e3)));
+  cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('lastSyncErrors',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(lastSyncErrors).slice(0, 4e3)));
   cleanup.push(db.prepare("INSERT INTO sync_state (key,value) VALUES ('sync_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(uploads.length ? (syncCursor + examined) % uploads.length : 0)));
   try {
     await db.batch(cleanup);
@@ -3725,17 +4031,17 @@ async function runSync(env) {
 __name(runSync, "runSync");
 var syncInFlight = null;
 var syncStartedAt = 0;
-function triggerSync(env) {
+function triggerSync(env2) {
   const now = Date.now();
   if (syncInFlight && now - syncStartedAt > 24e4)
     syncInFlight = null;
   if (!syncInFlight) {
     syncStartedAt = now;
-    syncInFlight = runSync(env).catch(async (e) => {
+    syncInFlight = runSync(env2).catch(async (e) => {
       const msg = "lazy sync failed: " + String(e).slice(0, 300);
       console.error(msg);
       try {
-        await env.DB.prepare(
+        await env2.DB.prepare(
           "INSERT INTO sync_state (key,value) VALUES ('lastSyncError',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
         ).bind(msg);
       } catch {
@@ -3749,14 +4055,19 @@ function triggerSync(env) {
 }
 __name(triggerSync, "triggerSync");
 var SYNC_STALE_MS = 5 * 60 * 1e3;
-async function isSyncStale(env) {
+async function isSyncStale(env2) {
+  const now = Date.now();
+  if (now - staleCheckAt < 6e4)
+    return staleCached;
+  staleCheckAt = now;
   try {
-    const row = await env.DB.prepare("SELECT value FROM sync_state WHERE key='lastSyncAt'").first();
+    const row = await env2.DB.prepare("SELECT value FROM sync_state WHERE key='lastSyncAt'").first();
     const t = Date.parse(String(row?.value || ""));
-    return !Number.isFinite(t) || Date.now() - t > SYNC_STALE_MS;
+    staleCached = !Number.isFinite(t) || now - t > SYNC_STALE_MS;
   } catch {
-    return true;
+    staleCached = true;
   }
+  return staleCached;
 }
 __name(isSyncStale, "isSyncStale");
 var app = new Hono3();
@@ -3810,7 +4121,7 @@ app.get("/debug/sync", async (c) => {
 app.get("/debug/state", async (c) => {
   try {
     await ensureSchema(c.env.DB);
-    const rows = await c.env.DB.prepare("SELECT key, value FROM sync_state WHERE key NOT LIKE '%cache%'").all();
+    const rows = await c.env.DB.prepare("SELECT key, value FROM sync_state WHERE key NOT LIKE '%cache%' AND key NOT LIKE 'cfg:%'").all();
     const out = {};
     for (const r of rows.results || [])
       out[String(r.key)] = String(r.value).slice(0, 400);
@@ -3879,13 +4190,23 @@ app.get("/api/stream/:id", async (c) => {
     const url = item[HOST_FIELD[host]];
     if (!url)
       continue;
-    const playUrl = host === "streamtape" ? toStreamtapeProxy(new URL(c.req.url).origin, url) : url;
+    let playUrl = host === "streamtape" ? toStreamtapeProxy(new URL(c.req.url).origin, url) : url;
+    let webview = false;
+    if (host === "vidara") {
+      const direct = await extractVidara(url).catch(() => null);
+      if (direct)
+        playUrl = direct;
+      else
+        webview = true;
+    }
+    if (host === "lulustream")
+      webview = true;
     streams.push({
       name: `The Gate \xB7 ${HOST_LABEL[host]}`,
       title: item.title,
       host,
       url: playUrl,
-      webview: false,
+      webview,
       behaviorHints: { proxyHeaders: { request: headersForHost(c.env, host) } }
     });
   }
@@ -3903,10 +4224,10 @@ app.get("/manifest.json", (c) => {
     resources: ["catalog", "meta", "stream"],
     types: ["movie", "series"],
     catalogs: [
-      { type: "movie", id: "movies", name: "The Gate Movies", extraSupported: ["search"], extra: [SEARCH_EXTRA] },
-      { type: "series", id: "series", name: "The Gate Series", extraSupported: ["search"], extra: [SEARCH_EXTRA] },
-      { type: "series", id: "anime", name: "The Gate Anime", extraSupported: ["search"], extra: [SEARCH_EXTRA] },
-      { type: "series", id: "tv", name: "The Gate TV", extraSupported: ["search"], extra: [SEARCH_EXTRA] }
+      { type: "movie", id: "movies", name: "The Gate Movies", extraSupported: ["search"] },
+      { type: "series", id: "series", name: "The Gate Series", extraSupported: ["search"] },
+      { type: "series", id: "anime", name: "The Gate Anime", extraSupported: ["search"] },
+      { type: "series", id: "tv", name: "The Gate TV", extraSupported: ["search"] }
     ],
     behaviorHints: { adult: false, p2p: false }
   });
@@ -3919,6 +4240,11 @@ app.get("/catalog/:type/:id.json", async (c) => {
   const type = c.req.param("type");
   const id = c.req.path.match(/\/catalog\/(?:movie|series)\/([A-Za-z0-9_-]+)\.json$/)?.[1] ?? "series";
   const q = c.req.query("q");
+  const ckey = `cat:${type}:${id}:${q || ""}`;
+  const cachedCat = catalogMemCache.get(ckey);
+  if (cachedCat && Date.now() - cachedCat.at < 6e4) {
+    return c.json({ metas: cachedCat.body });
+  }
   let sql = "SELECT * FROM media_items WHERE is_active=1 AND type=?";
   const params = [type];
   if (id === "anime" || id === "tv") {
@@ -3932,46 +4258,7 @@ app.get("/catalog/:type/:id.json", async (c) => {
   sql += " ORDER BY updated_at DESC, id DESC LIMIT 500";
   const { results } = await c.env.DB.prepare(sql).bind(...params).all();
   const seen = /* @__PURE__ */ new Set();
-  return c.json({
-    metas: results.filter((item) => {
-      const key2 = `${item.tmdb_id}:${item.type}`;
-      if (seen.has(key2))
-        return false;
-      seen.add(key2);
-      return true;
-    }).map((item) => {
-      const cat = item.category || (item.type === "movie" ? "movie" : "tv");
-      const label = cat === "anime" ? "Anime" : cat === "movie" ? "Movie" : "Series";
-      return {
-        id: `tmdb:${item.tmdb_id}`,
-        type: item.type,
-        name: item.title,
-        poster: item.poster,
-        posterShape: "poster",
-        background: item.backdrop,
-        description: item.overview || item.title,
-        releaseInfo: label,
-        category: cat
-      };
-    })
-  });
-});
-var SEARCH_EXTRA = { name: "search", isRequired: false };
-async function buildCatalogMetas(env, type, categoryId, q) {
-  let sql = "SELECT * FROM media_items WHERE is_active=1 AND type=?";
-  const params = [type];
-  if (categoryId === "anime" || categoryId === "tv") {
-    sql += " AND category=?";
-    params.push(categoryId);
-  }
-  if (q && q.trim()) {
-    sql += " AND (title LIKE ? OR CAST(tmdb_id AS TEXT)=?)";
-    params.push(`%${q.trim()}%`, q.trim());
-  }
-  sql += " ORDER BY updated_at DESC, id DESC LIMIT 500";
-  const { results } = await env.DB.prepare(sql).bind(...params).all();
-  const seen = /* @__PURE__ */ new Set();
-  return results.filter((item) => {
+  const metas = results.filter((item) => {
     const key2 = `${item.tmdb_id}:${item.type}`;
     if (seen.has(key2))
       return false;
@@ -3992,35 +4279,8 @@ async function buildCatalogMetas(env, type, categoryId, q) {
       category: cat
     };
   });
-}
-__name(buildCatalogMetas, "buildCatalogMetas");
-app.get("/catalog/:type/:id/*", async (c) => {
-  const pm = new URL(c.req.url).pathname.match(/^\/catalog\/(movie|series)\/([A-Za-z0-9_-]+)\/(.+?)\.json$/);
-  if (!pm)
-    return c.json({ metas: [] });
-  const type = pm[1];
-  const categoryId = pm[2];
-  const extraPath = decodeURIComponent(pm[3] || "");
-  let q = null;
-  let skip = 0;
-  for (const part of extraPath.split("&")) {
-    const [k, v] = part.split("=");
-    if (!k)
-      continue;
-    if (k.toLowerCase() === "search" && v !== void 0)
-      q = decodeURIComponent(v.replace(/\+/g, " "));
-    if (k.toLowerCase() === "skip" && v)
-      skip = Math.max(0, parseInt(v, 10) || 0);
-  }
-  if (q === null)
-    q = c.req.query("q") ?? null;
-  try {
-    await ensureSchema(c.env.DB);
-    const metas = await buildCatalogMetas(c.env, type, categoryId, q);
-    return c.json({ metas: skip > 0 ? metas.slice(skip) : metas });
-  } catch (e) {
-    return c.json({ metas: [], err: String(e?.message ?? e).slice(0, 120) });
-  }
+  catalogMemCache.set(ckey, { body: metas, at: Date.now() });
+  return c.json({ metas });
 });
 app.get("/meta/:type/:id.json", async (c) => {
   try {
@@ -4081,7 +4341,8 @@ app.get("/stream/:type/:id.json", async (c) => {
       matches = rows;
     }
     const streams = [];
-    for (const item of matches) {
+    const buildRow = /* @__PURE__ */ __name(async (item) => {
+      const rowStreams = [];
       for (const host of Object.keys(HOST_FIELD)) {
         if (HIDDEN_HOSTS.has(host))
           continue;
@@ -4107,6 +4368,20 @@ app.get("/stream/:type/:id.json", async (c) => {
             finalUrl = "https://mxdrop.click/e/" + ref;
           useWebview = true;
         }
+        if (host === "vidara") {
+          const direct = await cachedLink(env, "vidara:" + url, 6 * 60 * 60 * 1e3, () => extractVidara(url));
+          if (direct) {
+            finalUrl = direct;
+            useWebview = false;
+          } else {
+            finalUrl = url;
+            useWebview = true;
+          }
+        }
+        if (host === "lulustream") {
+          finalUrl = url;
+          useWebview = true;
+        }
         if (host === "earnvids") {
           const evId = url.match(/\/file\/([A-Za-z0-9]+)/i)?.[1] ?? url.match(/\/v\/([A-Za-z0-9]+)/i)?.[1] ?? url.match(/file_code=([A-Za-z0-9]+)/i)?.[1];
           if (evId) {
@@ -4126,10 +4401,9 @@ app.get("/stream/:type/:id.json", async (c) => {
           if (ufId) {
             const key2 = c.env.UFOLOAD_API_KEY || c.env.UFOLOAD_KEY;
             if (key2) {
-              try {
+              const playback = await cachedLink(env, "ufo:" + ufId, 2 * 60 * 60 * 1e3, async () => {
                 const ctrl = new AbortController();
                 const timer = setTimeout(() => ctrl.abort(), 15e3);
-                let playback;
                 try {
                   const links = await fetch("https://ufoload.com/api/v1/files/" + ufId + "/links", {
                     method: "POST",
@@ -4138,18 +4412,17 @@ app.get("/stream/:type/:id.json", async (c) => {
                   });
                   if (links.ok) {
                     const j = await links.json().catch(() => null);
-                    playback = typeof j?.playback === "string" ? j.playback : void 0;
+                    return typeof j?.playback === "string" && /^https?:\/\//.test(j.playback) ? j.playback : null;
                   }
+                  return null;
                 } finally {
                   clearTimeout(timer);
                 }
-                if (playback && /^https?:\/\//.test(playback)) {
-                  finalUrl = playback;
-                  useWebview = false;
-                } else {
-                  continue;
-                }
-              } catch {
+              });
+              if (playback && /^https?:\/\//.test(playback)) {
+                finalUrl = playback;
+                useWebview = false;
+              } else {
                 continue;
               }
             }
@@ -4162,7 +4435,7 @@ app.get("/stream/:type/:id.json", async (c) => {
           const byRef = url.match(/\/(?:e|f|v)\/([A-Za-z0-9]+)/i)?.[1];
           if (byRef) {
             try {
-              const dom = await fetchJson("https://api.byse.sx/get/domain?key=" + encodeURIComponent(c.env.BYSE_API_KEY ?? ""));
+              const dom = await fetchJson("https://api.byse.sx/get/domain?key=" + encodeURIComponent(await byseKey(c.env)));
               const nd = dom.json?.embed_domain || dom.json?.new_domain || "";
               const host2 = nd.replace(/^https?:\/\//, "").replace(/\/$/, "");
               if (host2) {
@@ -4176,7 +4449,7 @@ app.get("/stream/:type/:id.json", async (c) => {
           }
           useWebview = true;
         }
-        streams.push({
+        rowStreams.push({
           name: `The Gate \xB7 ${HOST_LABEL[host]}`,
           title: item.season != null ? `${item.title} S${item.season}E${item.episode}` : item.title,
           host,
@@ -4188,6 +4461,12 @@ app.get("/stream/:type/:id.json", async (c) => {
           }
         });
       }
+      return rowStreams;
+    }, "buildRow");
+    const rowResults = await Promise.all(matches.slice(0, 12).map((item) => buildRow(item).catch(() => [])));
+    for (const rs of rowResults) {
+      if (rs && rs.length)
+        streams.push(...rs);
     }
     streams.sort((a, b) => (a.webview ? 1 : 0) - (b.webview ? 1 : 0));
     if (c.req.query("debug") != null) {
@@ -4282,7 +4561,7 @@ app.get("/debug/discovery", async (c) => {
   try {
     const mdCache = /* @__PURE__ */ new Map();
     try {
-      const cacheRows = await c.env.DB.prepare("SELECT key, value FROM sync_state WHERE key LIKE 'mdfolder:%'").all();
+      const cacheRows = await c.env.DB.prepare("SELECT key, value FROM sync_state WHERE key LIKE 'mdfolder%'").all();
       for (const r of cacheRows.results || [])
         mdCache.set(r.key, parseInt(r.value, 10) || 0);
     } catch {
@@ -4295,6 +4574,8 @@ app.get("/debug/discovery", async (c) => {
       ...await listUfoloadUploads(c.env),
       ...await listEarnvidsUploads(c.env),
       ...await listDoodstreamUploads(c.env),
+      ...await listVidaraUploads(c.env),
+      ...await listLulustreamUploads(c.env),
       ...parseUploadsJson(c.env)
     ];
     const norm = /* @__PURE__ */ __name((u) => {
@@ -4335,8 +4616,8 @@ app.get("/debug/discovery", async (c) => {
     return c.json({ error: String(e), stack: e?.stack ?? null }, 500);
   }
 });
-async function hlsSign(env, url) {
-  const secret = env.SYNC_KEY || "the-gate";
+async function hlsSign(env2, url) {
+  const secret = env2.SYNC_KEY || "the-gate";
   const key2 = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -4348,7 +4629,7 @@ async function hlsSign(env, url) {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 __name(hlsSign, "hlsSign");
-async function hlsRewrite(env, playlist, baseUrl, code) {
+async function hlsRewrite(env2, playlist, baseUrl, code) {
   const origin = new URL(baseUrl).origin;
   const out = [];
   for (const rawLine of playlist.split("\n")) {
@@ -4364,7 +4645,7 @@ async function hlsRewrite(env, playlist, baseUrl, code) {
       out.push(rawLine);
       continue;
     }
-    const sig = await hlsSign(env, abs);
+    const sig = await hlsSign(env2, abs);
     out.push(`${origin}/proxy/ds/${code}?u=${encodeURIComponent(abs)}&s=${sig}`);
   }
   return out.join("\n");
@@ -4519,8 +4800,8 @@ app.get("/proxy/mx/:fileRef", async (c) => {
     headers.set("Content-Type", "video/mp4");
   return new Response(upstream.body, { status: upstream.status, headers });
 });
-async function tmdbDetail(env, mediaType, id) {
-  const key2 = env.TMDB_API_KEY;
+async function tmdbDetail(env2, mediaType, id) {
+  const key2 = env2.TMDB_API_KEY;
   if (!key2)
     return null;
   const { ok, json } = await fetchJsonRetry(
@@ -4539,8 +4820,8 @@ async function tmdbDetail(env, mediaType, id) {
   };
 }
 __name(tmdbDetail, "tmdbDetail");
-async function tmdbSearch(env, query, mediaType) {
-  const key2 = env.TMDB_API_KEY;
+async function tmdbSearch(env2, query, mediaType) {
+  const key2 = env2.TMDB_API_KEY;
   if (!key2 || !query)
     return null;
   const { ok, json } = await fetchJsonRetry(
@@ -4565,11 +4846,11 @@ async function tmdbSearch(env, query, mediaType) {
   return null;
 }
 __name(tmdbSearch, "tmdbSearch");
-async function resolveAddMatch(env, tmdbId, title, typeHint) {
+async function resolveAddMatch(env2, tmdbId, title, typeHint) {
   if (tmdbId) {
     const order2 = typeHint === "movie" ? ["movie", "tv"] : typeHint === "series" ? ["tv", "movie"] : ["movie", "tv"];
     for (const t of order2) {
-      const d = await tmdbDetail(env, t, tmdbId);
+      const d = await tmdbDetail(env2, t, tmdbId);
       if (d)
         return d;
     }
@@ -4581,7 +4862,7 @@ async function resolveAddMatch(env, tmdbId, title, typeHint) {
   const types = typeHint === "movie" ? ["movie", "tv"] : typeHint === "series" ? ["tv", "movie"] : ["movie", "tv"];
   for (const cand of candidates) {
     for (const t of types) {
-      const m = await tmdbSearch(env, cand, t);
+      const m = await tmdbSearch(env2, cand, t);
       if (m)
         return m;
     }
@@ -4589,9 +4870,9 @@ async function resolveAddMatch(env, tmdbId, title, typeHint) {
   return null;
 }
 __name(resolveAddMatch, "resolveAddMatch");
-async function registerTitle(env, match2, season, episode) {
+async function registerTitle(env2, match2, season, episode) {
   const id = `${match2.tmdbId}:${match2.type}:${season ?? 0}:${episode ?? 0}`;
-  await env.DB.prepare(
+  await env2.DB.prepare(
     `INSERT INTO media_items (id, tmdb_id, type, title, poster, backdrop, overview, rating, season, episode, is_title_only, is_active, updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,1,1,datetime('now'))
      ON CONFLICT(id) DO UPDATE SET title=excluded.title, poster=excluded.poster, backdrop=excluded.backdrop,
@@ -4831,18 +5112,18 @@ app.get("/api/sync", async (c) => {
   }
   try {
     const ingested = await runSync(c.env);
-    return c.json({ ok: true, ingested, errors: realSyncErrors() });
+    return c.json({ ok: true, ingested, errors: lastSyncErrors });
   } catch (e) {
     return c.json({ ok: false, error: String(e), stack: e?.stack ?? null }, 500);
   }
 });
-async function scheduled(event, env, ctx) {
-  if (env.CRON_ENABLED === "false")
+async function scheduled(event, env2, ctx) {
+  if (env2.CRON_ENABLED === "false")
     return;
   ctx.waitUntil(
     (async () => {
       try {
-        const n = await runSync(env);
+        const n = await runSync(env2);
         console.log(`[cron] done, ingested=${n}`);
       } catch (e) {
         console.error("[cron] failed:", e);
@@ -4959,6 +5240,12 @@ app.get("/resolve", async (c) => {
       } else if (/ufoload/i.test(hname)) {
         hostDirect = await extractUfoload(target.href);
         via = "ufoload";
+      } else if (/vixeo\.io|vidsonic\.net/i.test(hname)) {
+        hostDirect = await extractVixeo(target.href);
+        via = "vixeo";
+      } else if (/vidara\.to|oisauh\.com/i.test(hname)) {
+        hostDirect = await extractVidara(target.href);
+        via = "vidara";
       } else if (/dood/i.test(hname)) {
         const code = (target.pathname.match(/\/(?:e|d|file)\/([A-Za-z0-9]+)/i) || [])[1];
         if (code) {
@@ -5266,11 +5553,68 @@ app.get("/debug/rename", async (c) => {
 });
 app.get("/debug/clearcache", async (c) => {
   try {
-    await c.env.DB.prepare("DELETE FROM sync_state WHERE key IN ('uploads_cache','uploads_cache_at','mxcooldown','sync_cursor')").run();
+    await c.env.DB.prepare("DELETE FROM sync_state WHERE key IN ('uploads_cache','uploads_cache_at','mxcooldown','sync_cursor') OR key LIKE 'uploads_cache%'").run();
     return c.json({ ok: true, cleared: true }, 200, GATE_RESOLVE_CORS);
   } catch (e) {
     return c.json({ ok: false, error: String(e).slice(0, 150) }, 500);
   }
+});
+app.get("/debug/delrow", async (c) => {
+  const raw2 = c.req.query("id") || "";
+  const ids = raw2.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!ids.length)
+    return c.json({ ok: false, error: "id required" }, 400);
+  const deleted = [];
+  const failed = [];
+  for (const id of ids) {
+    try {
+      await c.env.DB.prepare("DELETE FROM media_items WHERE id=?").bind(id).run();
+      deleted.push(id);
+    } catch (e) {
+      failed.push(id + ": " + String(e?.message ?? e).slice(0, 80));
+    }
+  }
+  return c.json({ ok: failed.length === 0, deleted, failed }, 200, GATE_RESOLVE_CORS);
+});
+app.post("/debug/seturl", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!Array.isArray(body))
+    return c.json({ ok: false, error: "JSON array required" }, 400);
+  const HOSTCOL = {
+    streamtape: "streamtape_url",
+    vidmoly: "vidmoly_url",
+    mixdrop: "mixdrop_url",
+    ufoload: "ufoload_url",
+    abyss: "abyss_url",
+    byse: "byse_url",
+    earnvids: "earnvids_url",
+    doodstream: "doodstream_url",
+    vidara: "vidara_url",
+    lulustream: "lulustream_url"
+  };
+  let updated = 0;
+  const errors = [];
+  for (const r of body) {
+    const id = String(r?.id || "");
+    const host = String(r?.host || "").toLowerCase();
+    const url = String(r?.url ?? "");
+    const col = HOSTCOL[host];
+    if (!id || !col) {
+      errors.push("bad row: " + JSON.stringify(r).slice(0, 70));
+      continue;
+    }
+    try {
+      await c.env.DB.prepare(`UPDATE media_items SET ${col}=?, updated_at=datetime('now') WHERE id=?`).bind(url, id).run();
+      updated++;
+    } catch (e) {
+      errors.push(id + ": " + String(e?.message ?? e).slice(0, 80));
+    }
+  }
+  try {
+    await c.env.DB.prepare("UPDATE media_items SET is_active=0, updated_at=datetime('now') WHERE is_active=1 AND streamtape_url='' AND vidmoly_url='' AND mixdrop_url='' AND ufoload_url='' AND abyss_url='' AND byse_url='' AND earnvids_url='' AND doodstream_url='' AND vidara_url='' AND lulustream_url='' AND is_title_only=0").run();
+  } catch {
+  }
+  return c.json({ ok: errors.length === 0, updated, errors }, 200, GATE_RESOLVE_CORS);
 });
 app.get("/catalog/ufoload.json", async (c) => {
   try {
@@ -5353,7 +5697,7 @@ app.get("/debug/cleanup-dead", async (c) => {
       } catch {
       }
     }
-    await c.env.DB.prepare("UPDATE media_items SET is_active=0, updated_at=datetime('now') WHERE is_active=1 AND streamtape_url='' AND vidmoly_url='' AND mixdrop_url='' AND ufoload_url='' AND abyss_url='' AND byse_url='' AND earnvids_url='' AND doodstream_url='' AND is_title_only=0").run();
+    await c.env.DB.prepare("UPDATE media_items SET is_active=0, updated_at=datetime('now') WHERE is_active=1 AND streamtape_url='' AND vidmoly_url='' AND mixdrop_url='' AND ufoload_url='' AND abyss_url='' AND byse_url='' AND earnvids_url='' AND doodstream_url='' AND vidara_url='' AND lulustream_url='' AND is_title_only=0").run();
     return c.json({ ok: true, checked, dead }, 200, GATE_RESOLVE_CORS);
   } catch (e) {
     return c.json({ ok: false, error: String(e).slice(0, 200) });
@@ -5514,13 +5858,360 @@ app.get("/debug/delwatch", async (c) => {
   const r = await c.env.DB.prepare("DELETE FROM watchlist WHERE file_name LIKE ?").bind(like).run();
   return c.json({ ok: true, changes: r.changes || 0 }, 200, GATE_RESOLVE_CORS);
 });
+app.get("/debug/tmdb", async (c) => {
+  const name = c.req.query("name") || "";
+  if (!name)
+    return c.json({ ok: false, error: "name required" }, 400);
+  const p = parseFilename(name);
+  const m = await tmdbMatch(c.env, p);
+  return c.json({ ok: !!m, input: name, title: p.title, tmdbId: m?.tmdbId ?? null, type: m?.type ?? null, name: m?.name ?? null }, 200, GATE_RESOLVE_CORS);
+});
+app.get("/debug/setlulu", async (c) => {
+  const key2 = String(c.req.query("key") || "").trim();
+  if (!/^[A-Za-z0-9]{12,80}$/.test(key2))
+    return c.json({ ok: false, error: "valid api key required" }, 400);
+  try {
+    await c.env.DB.prepare("INSERT INTO sync_state (key,value) VALUES ('cfg:lulu_key',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key2).run();
+    return c.json({ ok: true, stored: true }, 200, GATE_RESOLVE_CORS);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message ?? e).slice(0, 150) }, 500);
+  }
+});
+app.get("/debug/setbyse", async (c) => {
+  const key2 = String(c.req.query("key") || "").trim();
+  if (!/^[A-Za-z0-9]{12,80}$/.test(key2))
+    return c.json({ ok: false, error: "valid api key required" }, 400);
+  try {
+    await c.env.DB.prepare("INSERT INTO sync_state (key,value) VALUES ('cfg:byse_key',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key2).run();
+    return c.json({ ok: true, stored: true }, 200, GATE_RESOLVE_CORS);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message ?? e).slice(0, 150) }, 500);
+  }
+});
+app.get("/debug/setvidara", async (c) => {
+  const key2 = String(c.req.query("key") || "").trim();
+  if (!/^[a-f0-9]{32,80}$/i.test(key2))
+    return c.json({ ok: false, error: "valid api key required" }, 400);
+  try {
+    await c.env.DB.prepare("INSERT INTO sync_state (key,value) VALUES ('cfg:vidara_key',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(key2).run();
+    return c.json({ ok: true, stored: true, videos_hint: "run /debug/runsync" }, 200, GATE_RESOLVE_CORS);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message ?? e).slice(0, 150) }, 500);
+  }
+});
+app.get("/debug/vixeo", async (c) => {
+  const target = gateParseExternalUrl(c.req.query("url") || "");
+  if (!target)
+    return c.json({ ok: false, error: "valid url required" }, 400);
+  try {
+    const direct = await extractVixeo(target.href);
+    return c.json({ ok: !!direct, url: direct, type: direct && /\.m3u8/i.test(direct) ? "m3u8" : "mp4" }, 200, GATE_RESOLVE_CORS);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, 500);
+  }
+});
+app.get("/debug/vidara", async (c) => {
+  const target = gateParseExternalUrl(c.req.query("url") || "");
+  if (!target)
+    return c.json({ ok: false, error: "valid url required" }, 400);
+  try {
+    const direct = await extractVidara(target.href);
+    return c.json({ ok: !!direct, url: direct, type: direct && /\.m3u8/i.test(direct) ? "m3u8" : "mp4" }, 200, GATE_RESOLVE_CORS);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, 500);
+  }
+});
+app.get("/debug/mixrename", async (c) => {
+  const fileRef = (c.req.query("file") || "").replace(/[^A-Za-z0-9]/g, "");
+  const newName = c.req.query("name") || "";
+  const E = c.env.MIXDROP_EMAIL || "";
+  const K = c.env.MIXDROP_KEY || "";
+  if (!fileRef || !newName || !E || !K)
+    return c.json({ ok: false, error: "file, name, MIXDROP_EMAIL/KEY required" }, 400);
+  try {
+    const u = `https://api.mixdrop.ag/file/rename?email=${encodeURIComponent(E)}&key=${encodeURIComponent(K)}&file=${encodeURIComponent(fileRef)}&name=${encodeURIComponent(newName)}`;
+    const r = await fetchJson(u);
+    return c.json({ ok: !!r.ok, status: r.status, body: String(r.text || "").slice(0, 200), file: fileRef, name: newName }, 200, GATE_RESOLVE_CORS);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e).slice(0, 150) }, 500);
+  }
+});
+app.get("/debug/ufoname", async (c) => {
+  const fid = (c.req.query("file") || "").replace(/[^A-Za-z0-9]/g, "");
+  const newName = c.req.query("name") || "";
+  const key2 = c.env.UFOLOAD_API_KEY || c.env.UFOLOAD_KEY || "";
+  if (!fid || !newName || !key2)
+    return c.json({ ok: false, error: "file, name, UFOLOAD key required" }, 400);
+  const tries = [];
+  for (const body of [{ name: newName }, { title: newName }]) {
+    try {
+      const r = await fetch(`https://ufoload.com/api/v1/files/${fid}`, {
+        method: "PATCH",
+        headers: { Authorization: "Bearer " + key2, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body)
+      });
+      const text = await r.text();
+      tries.push({ body: Object.keys(body)[0], status: r.status, resp: text.slice(0, 160) });
+      if (r.ok)
+        return c.json({ ok: true, file: fid, name: newName, tries }, 200, GATE_RESOLVE_CORS);
+    } catch (e) {
+      tries.push({ error: String(e?.message ?? e).slice(0, 120) });
+    }
+  }
+  return c.json({ ok: false, file: fid, name: newName, tries }, 200, GATE_RESOLVE_CORS);
+});
+app.post("/debug/insert", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!Array.isArray(body))
+    return c.json({ ok: false, error: "JSON array required" }, 400);
+  const HOSTCOL = {
+    streamtape: "streamtape_url",
+    vidmoly: "vidmoly_url",
+    mixdrop: "mixdrop_url",
+    ufoload: "ufoload_url",
+    abyss: "abyss_url",
+    byse: "byse_url",
+    earnvids: "earnvids_url",
+    doodstream: "doodstream_url",
+    vidara: "vidara_url",
+    lulustream: "lulustream_url"
+  };
+  let inserted = 0;
+  const errors = [];
+  const key2 = c.env.TMDB_API_KEY;
+  for (const r of body) {
+    const tmdbId = Number(r.tmdbId);
+    const host = String(r.host || "").toLowerCase();
+    const url = String(r.url || "");
+    const season = r.season != null ? Number(r.season) : null;
+    const episode = r.episode != null ? Number(r.episode) : null;
+    const col = HOSTCOL[host];
+    if (!tmdbId || !col || !url) {
+      errors.push("bad row: " + JSON.stringify(r).slice(0, 60));
+      continue;
+    }
+    try {
+      const kind = season != null || episode != null ? "tv" : "movie";
+      const d = await fetchJson(`https://api.themoviedb.org/3/${kind}/${tmdbId}?api_key=${key2}&language=en-US`);
+      const j = d.json || {};
+      const title = String(j.name || j.title || r.title || "Unknown");
+      const poster = j.poster_path ? `https://image.tmdb.org/t/p/w500${j.poster_path}` : "";
+      const backdrop = j.backdrop_path ? `https://image.tmdb.org/t/p/w1280${j.backdrop_path}` : "";
+      const overview = String(j.overview || "");
+      const rating = typeof j.vote_average === "number" ? j.vote_average : 0;
+      const genres = (j.genres || []).map((g) => String(g.name || ""));
+      const origin = String(j.origin_country?.[0] || "");
+      const category = kind === "movie" ? "movie" : genres.some((g) => /animation|anime/i.test(g)) || origin === "JP" ? "anime" : "tv";
+      const id = `${tmdbId}:${kind === "movie" ? "movie" : "series"}:${season ?? 0}:${episode ?? 0}`;
+      const cols = ["id", "tmdb_id", "type", "title", "poster", "backdrop", "overview", "rating", "season", "episode", "category", col, "is_active"];
+      const vals = [id, tmdbId, kind === "movie" ? "movie" : "series", title, poster, backdrop, overview, rating, season, episode, category, url, 1];
+      const placeholders = cols.map(() => "?").join(",");
+      await c.env.DB.prepare(
+        `INSERT INTO media_items (${cols.join(",")}) VALUES (${placeholders})
+         ON CONFLICT(id) DO UPDATE SET ${col}=excluded.${col}, title=excluded.title, poster=excluded.poster, backdrop=excluded.backdrop, overview=excluded.overview, is_active=1, updated_at=datetime('now')`
+      ).bind(...vals).run();
+      inserted++;
+    } catch (e) {
+      errors.push(String(e?.message ?? e).slice(0, 80));
+    }
+  }
+  return c.json({ ok: true, inserted, errors: errors.slice(0, 10) }, 200, GATE_RESOLVE_CORS);
+});
+async function validateLinks(env2, limit) {
+  const db = env2.DB;
+  let cur = 0;
+  try {
+    const cr = await db.prepare("SELECT value FROM sync_state WHERE key='validate_cursor'").first();
+    cur = parseInt(cr?.value || "0", 10) || 0;
+  } catch {
+  }
+  let rows = [];
+  try {
+    const { results } = await db.prepare(
+      "SELECT id, streamtape_url, mixdrop_url, ufoload_url, vidara_url FROM media_items WHERE is_active=1 ORDER BY id LIMIT ? OFFSET ?"
+    ).bind(limit, cur).all();
+    rows = results || [];
+  } catch {
+  }
+  if (rows.length === 0 && cur > 0) {
+    cur = 0;
+    try {
+      const { results } = await db.prepare(
+        "SELECT id, streamtape_url, mixdrop_url, ufoload_url, vidara_url FROM media_items WHERE is_active=1 ORDER BY id LIMIT ? OFFSET 0"
+      ).bind(limit).all();
+      rows = results || [];
+    } catch {
+    }
+  }
+  const login = String(env2.STREAMTAPE_USER || env2.STREAMTAPE_LOGIN || "");
+  const stKey = String(env2.STREAMTAPE_KEY || "");
+  const mxEmail = String(env2.MIXDROP_EMAIL || "");
+  const mxKey = String(env2.MIXDROP_KEY || "");
+  const ufKey = String(env2.UFOLOAD_API_KEY || env2.UFOLOAD_KEY || "");
+  const stmts = [];
+  let cleared = 0;
+  const rowKeyOfName = /* @__PURE__ */ __name((name) => {
+    const s = String(name || "");
+    const m = s.match(/tmdb[_\s]?(\d+)/i);
+    if (!m)
+      return "";
+    const tid = parseInt(m[1], 10) || 0;
+    const se = s.match(/[Ss](\d{1,2})[ ._-]?[Ee](\d{1,3})/);
+    return se ? `${tid}:series:${parseInt(se[1], 10)}:${parseInt(se[2], 10)}` : `${tid}:movie:0:0`;
+  }, "rowKeyOfName");
+  for (const r of rows) {
+    const st = String(r.streamtape_url || "");
+    const mx = String(r.mixdrop_url || "");
+    const uf = String(r.ufoload_url || "");
+    const vd = String(r.vidara_url || "");
+    let stDead = false, mxDead = false, ufDead = false, vdDead = false;
+    let stMismatch = false, mxMismatch = false;
+    let stRef = "", mxRef = "", ufId = "", vdRef = "";
+    if (st.includes("streamtape") && login && stKey) {
+      const ref = st.match(/\/(?:e|v|f|file)\/([A-Za-z0-9]+)/)?.[1] || "";
+      if (ref) {
+        stRef = ref;
+        try {
+          const j = await fetchJson(`https://api.streamtape.com/file/info?file=${ref}&login=${encodeURIComponent(login)}&key=${encodeURIComponent(stKey)}`);
+          const info = j.json?.result?.[ref];
+          if (j.ok && j.json && info) {
+            stDead = !(Number(info.status) === 200 && info.name);
+            if (!stDead) {
+              const k = rowKeyOfName(String(info.name || ""));
+              if (k && k !== String(r.id))
+                stMismatch = true;
+            }
+          }
+        } catch {
+        }
+      }
+    }
+    if (mx && mxEmail && mxKey) {
+      const ref = mx.match(/\/(?:e|f|v)\/([A-Za-z0-9]+)/)?.[1] || mx.match(/\/v2\/([A-Za-z0-9]+)\.mp4/)?.[1] || "";
+      if (ref) {
+        mxRef = ref;
+        try {
+          const j = await fetchJson(`https://api.mixdrop.ag/fileinfo?ref=${ref}&email=${encodeURIComponent(mxEmail)}&key=${encodeURIComponent(mxKey)}`);
+          if (j.ok && j.json) {
+            const res = j.json.result || {};
+            if (j.json.success === true) {
+              mxDead = res.deleted === true || res.status && !/OK/i.test(String(res.status));
+              if (!mxDead) {
+                const k = rowKeyOfName(String(res.title || ""));
+                if (k && k !== String(r.id))
+                  mxMismatch = true;
+              }
+            } else if (/invalid file ref/i.test(String(res.msg || "")))
+              mxDead = true;
+          }
+        } catch {
+        }
+      }
+    }
+    if (uf && ufKey) {
+      const fid = uf.match(/\/files\/([A-Za-z0-9]+)/)?.[1] || "";
+      if (fid) {
+        ufId = fid;
+        try {
+          const res = await fetch(`https://ufoload.com/api/v1/files/${fid}/links`, {
+            method: "POST",
+            headers: { Authorization: "Bearer " + ufKey, Accept: "application/json" }
+          });
+          if (res.status === 404 || res.status === 410)
+            ufDead = true;
+        } catch {
+        }
+      }
+    }
+    if (vd) {
+      const code = vd.match(/vidara\.[a-z]+\/([A-Za-z0-9]+)/i)?.[1] || "";
+      if (code) {
+        vdRef = code;
+        try {
+          const vk = await vidaraKey(env2);
+          if (vk) {
+            const j = await fetchJson(`https://api.vidara.so/v1/video/info?api_key=${encodeURIComponent(vk)}&filecode=${encodeURIComponent(code)}`);
+            const arr = j.json?.result;
+            const row = Array.isArray(arr) ? arr[0] : arr;
+            if (j.ok && j.json && row) {
+              vdDead = !(String(row.status || "") === "active" && Number(row.file_active) === 1);
+            }
+          }
+        } catch {
+        }
+      }
+    }
+    if (stDead && stRef)
+      stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind("deadref:streamtape:" + stRef, "1"));
+    if (mxDead && mxRef)
+      stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind("deadref:mixdrop:" + mxRef, "1"));
+    if (ufDead && ufId)
+      stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind("deadref:ufoload:" + ufId, "1"));
+    if (vdDead && vdRef)
+      stmts.push(db.prepare("INSERT INTO sync_state (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind("deadref:vidara:" + vdRef, "1"));
+    if (stDead) {
+      stmts.push(db.prepare("UPDATE media_items SET streamtape_url='' WHERE id=?").bind(r.id));
+      cleared++;
+    }
+    if (mxDead) {
+      stmts.push(db.prepare("UPDATE media_items SET mixdrop_url='' WHERE id=?").bind(r.id));
+      cleared++;
+    }
+    if (ufDead) {
+      stmts.push(db.prepare("UPDATE media_items SET ufoload_url='' WHERE id=?").bind(r.id));
+      cleared++;
+    }
+    if (vdDead) {
+      stmts.push(db.prepare("UPDATE media_items SET vidara_url='' WHERE id=?").bind(r.id));
+      cleared++;
+    }
+    if (stMismatch) {
+      stmts.push(db.prepare("UPDATE media_items SET streamtape_url='' WHERE id=?").bind(r.id));
+      cleared++;
+    }
+    if (mxMismatch) {
+      stmts.push(db.prepare("UPDATE media_items SET mixdrop_url='' WHERE id=?").bind(r.id));
+      cleared++;
+    }
+  }
+  if (stmts.length) {
+    try {
+      await db.batch(stmts);
+    } catch {
+    }
+    try {
+      await db.prepare("UPDATE media_items SET is_active=0, updated_at=datetime('now') WHERE is_active=1 AND streamtape_url='' AND vidmoly_url='' AND mixdrop_url='' AND ufoload_url='' AND abyss_url='' AND byse_url='' AND earnvids_url='' AND doodstream_url='' AND vidara_url='' AND lulustream_url='' AND is_title_only=0").run();
+    } catch {
+    }
+  }
+  const next = cur + rows.length;
+  try {
+    await db.prepare("INSERT INTO sync_state (key,value) VALUES ('validate_cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(String(next)).run();
+  } catch {
+  }
+  return { checked: rows.length, cleared, cursor: next };
+}
+__name(validateLinks, "validateLinks");
+app.get("/debug/validate", async (c) => {
+  const limit = Math.min(parseInt(c.req.query("limit") || "25", 10) || 25, 30);
+  try {
+    const r = await validateLinks(c.env, limit);
+    return c.json({ ok: true, ...r }, 200, GATE_RESOLVE_CORS);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message ?? e).slice(0, 200) }, 500);
+  }
+});
 var src_default = {
   fetch: app.fetch,
-  async scheduled(_event, env, ctx) {
-    if (String(env.CRON_ENABLED ?? "true") !== "true")
+  async scheduled(_event, env2, ctx) {
+    if (String(env2.CRON_ENABLED ?? "true") !== "true")
       return;
     try {
-      ctx.waitUntil(triggerSync(env));
+      ctx.waitUntil(triggerSync(env2));
+    } catch {
+    }
+    try {
+      ctx.waitUntil(validateLinks(env2, 3).catch(() => void 0));
     } catch {
     }
   }
@@ -5530,4 +6221,3 @@ export {
   scheduled
 };
 //# sourceMappingURL=index.js.map
-
