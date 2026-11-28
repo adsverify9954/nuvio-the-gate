@@ -57,15 +57,15 @@ object NuvioTokens {
         val xxl = Space.s24
         val full = 999.dp
 
-        val card = xxl
-        val compactCard = lg
-        val sheet = xxl
-        val dialog = Space.s28
-        val button = xl
+        val card = Space.s8
+        val compactCard = Space.s6
+        val sheet = Space.s16
+        val dialog = Space.s12
+        val button = Space.s4
         val chip = full
-        val poster = lg
+        val poster = Space.s6
         val avatar = full
-        val playerPanel = xxl
+        val playerPanel = Space.s16
     }
 
     object Border {

@@ -18,7 +18,7 @@ private data class StoredPosterCardStylePreferences(
     val heightDp: Int = DefaultPosterCardHeightDp,
     val cornerRadiusDp: Int = DefaultPosterCardCornerRadiusDp,
     val catalogLandscapeModeEnabled: Boolean = false,
-    val hideLabelsEnabled: Boolean = false,
+    val hideLabelsEnabled: Boolean = true,
     val alwaysShowLandscapeClearlogo: Boolean = false,
 )
 
@@ -27,7 +27,7 @@ data class PosterCardStyleUiState(
     val heightDp: Int = DefaultPosterCardHeightDp,
     val cornerRadiusDp: Int = DefaultPosterCardCornerRadiusDp,
     val catalogLandscapeModeEnabled: Boolean = false,
-    val hideLabelsEnabled: Boolean = false,
+    val hideLabelsEnabled: Boolean = true,
     val alwaysShowLandscapeClearlogo: Boolean = false,
 )
 

@@ -77,6 +77,7 @@ private fun HomeCatalogRowSectionContent(
         rowContentPadding = PaddingValues(horizontal = sectionPadding),
         onViewAllClick = onViewAllClick,
         viewAllPillSize = NuvioViewAllPillSize.Compact,
+        animatePlacement = true,
         key = { item -> item.stableKey() },
     ) { item ->
         HomePosterCard(

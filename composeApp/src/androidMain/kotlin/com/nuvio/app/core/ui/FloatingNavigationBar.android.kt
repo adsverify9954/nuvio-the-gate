@@ -1,17 +1,28 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,9 +31,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
@@ -33,8 +46,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.glass.GlassBarSurface
 import com.nuvio.app.core.ui.jelly.JellyMotion
 import com.nuvio.app.core.ui.jelly.JellyTabRow
@@ -50,7 +65,8 @@ internal actual val floatingNavigationGlowSupported: Boolean
     get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
 
 @Composable
-internal actual fun FloatingNavigationBar(
+@Suppress("unused")
+private fun LegacyFloatingNavigationBar(
     items: List<FloatingNavigationItem>,
     modifier: Modifier,
     scrollState: NuvioNavBarScrollState?,
@@ -244,6 +260,126 @@ internal suspend fun PointerInputScope.detectJellyTabGestures(
                 val selectedIndex = items.indexOfFirst { it.selected }
                 motion.cancel(visualNavIndex(selectedIndex, items.size, isRtl()))
             }
+        }
+    }
+}
+
+/**
+ * Netflix-style bottom bar: flat black, hairline top edge, red active icon,
+ * animated color/scale instead of the jelly pill.
+ */
+@Composable
+internal actual fun FloatingNavigationBar(
+    items: List<FloatingNavigationItem>,
+    modifier: Modifier,
+    scrollState: NuvioNavBarScrollState?,
+    hazeState: HazeState?,
+    contentPadding: PaddingValues,
+    compactSize: Boolean,
+    glowEnabled: Boolean,
+) {
+    if (items.isEmpty()) return
+    val labelFraction by animateFloatAsState(
+        targetValue = scrollState?.labelVisibility ?: 1f,
+        animationSpec = tween(NuvioTokens.Motion.sheetEnterMillis, easing = NuvioTokens.Motion.standard),
+        label = "netflix_nav_labels",
+    )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(contentPadding),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF050505).copy(alpha = 0.98f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0xFF262626)),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = NuvioTokens.Space.s8, vertical = NuvioTokens.Space.s6),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items.forEach { item ->
+                    NetflixNavItem(item = item, labelFraction = labelFraction, compactSize = compactSize)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.NetflixNavItem(
+    item: FloatingNavigationItem,
+    labelFraction: Float,
+    compactSize: Boolean,
+) {
+    val tokens = MaterialTheme.nuvio
+    val iconColor by animateColorAsState(
+        targetValue = if (item.selected) tokens.colors.accent else tokens.colors.textMuted,
+        animationSpec = tween(220),
+        label = "netflix_nav_color",
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (item.selected) 1.08f else 1f,
+        animationSpec = tween(220, easing = NuvioTokens.Motion.standard),
+        label = "netflix_nav_scale",
+    )
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = item.onClick)
+            .padding(vertical = NuvioTokens.Space.s6),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val iconModifier = Modifier
+            .size(if (compactSize) 22.dp else 24.dp)
+            .graphicsLayer {
+                scaleX = iconScale
+                scaleY = iconScale
+            }
+        val icon = item.icon
+        val drawable = item.drawable
+        val content = item.content
+        when {
+            icon != null -> Icon(
+                imageVector = icon,
+                contentDescription = item.label,
+                tint = iconColor,
+                modifier = iconModifier,
+            )
+            drawable != null -> Icon(
+                painter = org.jetbrains.compose.resources.painterResource(drawable),
+                contentDescription = item.label,
+                tint = iconColor,
+                modifier = iconModifier,
+            )
+            content != null -> Box(modifier = iconModifier, contentAlignment = Alignment.Center) {
+                content(item.onClick)
+            }
+        }
+        if (labelFraction > 0f) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp,
+                    fontWeight = if (item.selected) FontWeight.SemiBold else FontWeight.Normal,
+                ),
+                color = if (item.selected) Color.White else iconColor,
+                maxLines = 1,
+                modifier = Modifier.alpha(labelFraction),
+            )
         }
     }
 }

@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -65,7 +66,7 @@ fun HomeTop10RowSection(
             ) { index, item ->
                 Box(
                     modifier = Modifier
-                        .width(196.dp)
+                        .width(190.dp)
                         .clickable(enabled = onPosterClick != null) {
                             onPosterClick?.invoke(item)
                         },
@@ -73,6 +74,8 @@ fun HomeTop10RowSection(
                 ) {
                     Text(
                         text = "${index + 1}",
+                        modifier = Modifier.width(64.dp),
+                        textAlign = TextAlign.Center,
                         style = TextStyle(
                             fontSize = 112.sp,
                             lineHeight = 96.sp,

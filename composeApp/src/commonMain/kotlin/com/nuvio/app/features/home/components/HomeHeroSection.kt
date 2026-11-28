@@ -264,9 +264,9 @@ fun HomeHeroSection(
                             Brush.verticalGradient(
                                 colors = listOf(
                                     MaterialTheme.colorScheme.background.copy(alpha = 0.02f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.34f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.78f),
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.28f),
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.62f),
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.92f),
                                 ),
                             ),
                         ),
@@ -281,6 +281,7 @@ fun HomeHeroSection(
                             Brush.verticalGradient(
                                 colors = listOf(
                                     MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
                                     MaterialTheme.colorScheme.background,
                                 ),
                             ),
