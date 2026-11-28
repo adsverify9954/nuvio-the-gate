@@ -2229,6 +2229,7 @@ async function extractPageTitle(url) {
   }
 }
 __name(extractPageTitle, "extractPageTitle");
+var SCHEMA_V = "5";
 var schemaReady = false;
 var staleCheckAt = 0;
 var staleCached = true;
@@ -2262,6 +2263,14 @@ __name(cachedLink, "cachedLink");
 async function ensureSchema(db) {
   if (schemaReady)
     return [];
+  try {
+    const flag = await db.prepare("SELECT value FROM sync_state WHERE key='schema_v'").first();
+    if (String(flag?.value || "") === SCHEMA_V) {
+      schemaReady = true;
+      return [];
+    }
+  } catch {
+  }
   const errors = [];
   const single = /* @__PURE__ */ __name(async (label, sql) => {
     try {
@@ -2274,11 +2283,18 @@ async function ensureSchema(db) {
   await single("create host_uploads", DDL_UPLOADS);
   await single("create sync_state", DDL_SYNC);
   await single("create watchlist", DDL_WATCHLIST);
+  await single("index media tmdb", "CREATE INDEX IF NOT EXISTS idx_media_tmdb ON media_items (tmdb_id, type)");
+  await single("index media catalog", "CREATE INDEX IF NOT EXISTS idx_media_catalog ON media_items (type, is_active, updated_at)");
   for (const [table, column] of ALTER_COLUMNS) {
     await single(`alter ${table} + ${column.split(" ")[0]}`, `ALTER TABLE ${table} ADD COLUMN ${column}`);
   }
-  if (errors.every((e) => /already exists|duplicate/i.test(e)))
+  if (errors.every((e) => /already exists|duplicate/i.test(e))) {
     schemaReady = true;
+    try {
+      await db.prepare("INSERT INTO sync_state (key,value) VALUES ('schema_v',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(SCHEMA_V).run();
+    } catch {
+    }
+  }
   return errors;
 }
 __name(ensureSchema, "ensureSchema");
@@ -5374,6 +5390,48 @@ app.get("/proxy", async (c) => {
     return new Response(res.body, { status: res.status, headers: out });
   } catch (e) {
     return c.json({ ok: false, error: String(e?.message ?? e) }, 502);
+  }
+});
+app.get("/debug/fixtitle", async (c) => {
+  try {
+    await ensureSchema(c.env.DB);
+    const key2 = c.env.TMDB_API_KEY;
+    if (!key2)
+      return c.json({ ok: false, error: "no TMDB_API_KEY" }, 500);
+    const only = c.req.query("id");
+    const { results: rows } = only ? await c.env.DB.prepare("SELECT id, tmdb_id, type, title FROM media_items WHERE tmdb_id=?").bind(parseInt(only, 10)).all() : await c.env.DB.prepare(
+      "SELECT id, tmdb_id, type, title FROM media_items WHERE is_title_only=0 AND (lower(title) IN ('untitled video','untitled','video','movie','series','download','vidara','streamtape') OR title LIKE 'video %' OR title LIKE 'untitled %')"
+    ).all();
+    let fixed = 0;
+    const fixes = [];
+    for (const r of rows) {
+      if (!r.tmdb_id)
+        continue;
+      try {
+        const d = await fetchJsonRetry(`https://api.themoviedb.org/3/${r.type}/${r.tmdb_id}?api_key=${key2}&language=en-US`);
+        if (!d.ok) {
+          fixes.push({ id: r.id, error: `tmdb ${d.status ?? "?"}` });
+          continue;
+        }
+        const t = String(d.json?.title || d.json?.name || "").trim();
+        if (!t) {
+          fixes.push({ id: r.id, error: "empty title" });
+          continue;
+        }
+        if (t.toLowerCase() !== String(r.title).toLowerCase()) {
+          await c.env.DB.prepare("UPDATE media_items SET title=?, updated_at=datetime('now') WHERE id=?").bind(t, r.id).run();
+          fixes.push({ id: r.id, from: r.title, to: t });
+          fixed++;
+        } else {
+          fixes.push({ id: r.id, same: true });
+        }
+      } catch (err) {
+        fixes.push({ id: r.id, error: String(err).slice(0, 120) });
+      }
+    }
+    return c.json({ ok: true, checked: rows.length, fixed, fixes });
+  } catch (e) {
+    return c.json({ ok: false, error: String(e) }, 500);
   }
 });
 app.get("/debug/names", async (c) => {

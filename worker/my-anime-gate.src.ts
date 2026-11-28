@@ -3563,6 +3563,55 @@ app.get("/proxy", async (c) => {
 // --------------------------------------------------- TMDB-friendly file rename
 // GET /debug/names?host=streamtape|ufoload|all&apply=1&limit=20
 // Default dry-run. apply=1 → host API se file ka naam tmdb_<ID>_<title>.mp4 karta hai.
+app.get("/debug/fixtitle", async (c) => {
+  // Placeholder titles ("untitled video", "video", ...) ko TMDB ke sahi title se replace karo.
+  // ?id=<tmdb id> sirf ek row; bina id ke saare placeholder rows.
+  try {
+    await ensureSchema(c.env.DB);
+    const key = c.env.TMDB_API_KEY;
+    if (!key) return c.json({ ok: false, error: "no TMDB_API_KEY" }, 500);
+    const only = c.req.query("id");
+    const { results: rows } = only
+      ? await c.env.DB.prepare("SELECT id, tmdb_id, type, title FROM media_items WHERE tmdb_id=?")
+          .bind(parseInt(only, 10)).all<any>()
+      : await c.env.DB.prepare(
+          "SELECT id, tmdb_id, type, title FROM media_items WHERE is_title_only=0 AND ("
+          + "lower(title) IN ('untitled video','untitled','video','movie','series','download','vidara','streamtape')"
+          + " OR title LIKE 'video %' OR title LIKE 'untitled %')"
+        ).all<any>();
+    let fixed = 0;
+    const fixes: any[] = [];
+    for (const r of rows) {
+      if (!r.tmdb_id) continue;
+      try {
+        const d = await fetchJsonRetry(`https://api.themoviedb.org/3/${r.type}/${r.tmdb_id}?api_key=${key}&language=en-US`);
+        if (!d.ok) {
+          fixes.push({ id: r.id, error: `tmdb ${d.status ?? "?"}` });
+          continue;
+        }
+        const t = String(d.json?.title || d.json?.name || "").trim();
+        if (!t) {
+          fixes.push({ id: r.id, error: "empty title" });
+          continue;
+        }
+        if (t.toLowerCase() !== String(r.title).toLowerCase()) {
+          await c.env.DB.prepare("UPDATE media_items SET title=?, updated_at=datetime('now') WHERE id=?")
+            .bind(t, r.id).run();
+          fixes.push({ id: r.id, from: r.title, to: t });
+          fixed++;
+        } else {
+          fixes.push({ id: r.id, same: true });
+        }
+      } catch (err) {
+        fixes.push({ id: r.id, error: String(err).slice(0, 120) });
+      }
+    }
+    return c.json({ ok: true, checked: rows.length, fixed, fixes });
+  } catch (e) {
+    return c.json({ ok: false, error: String(e) }, 500);
+  }
+});
+
 app.get("/debug/names", async (c) => {
   const host = (c.req.query("host") || "all").toLowerCase();
   const apply = c.req.query("apply") === "1";
