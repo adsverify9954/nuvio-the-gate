@@ -82,7 +82,7 @@ fun DetailActionButtons(
     val playPainter = appIconPainter(AppIconResource.PlayerPlay)
     val buttonHeight = if (isTablet) 56.dp else 52.dp
     val iconButtonSize = buttonHeight
-    val playShape = RoundedCornerShape(40.dp)
+    val playShape = RoundedCornerShape(4.dp)
     val hapticFeedback = LocalHapticFeedback.current
     var actionsExpanded by remember { mutableStateOf(false) }
     val menuProgress by animateFloatAsState(

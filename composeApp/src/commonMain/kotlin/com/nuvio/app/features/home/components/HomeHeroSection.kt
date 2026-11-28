@@ -1,6 +1,10 @@
 package com.nuvio.app.features.home.components
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MutatePriority
@@ -342,9 +346,24 @@ fun HomeHeroSection(
 
                     if (!layout.isTablet) {
                         Spacer(modifier = Modifier.height(14.dp))
+                        val playInteraction = remember { MutableInteractionSource() }
+                        val playPressed by playInteraction.collectIsPressedAsState()
+                        val playScale by animateFloatAsState(
+                            targetValue = if (playPressed) 0.95f else 1f,
+                            animationSpec = tween(durationMillis = 120),
+                            label = "hero_play_scale",
+                        )
                         Surface(
                             modifier = Modifier
-                                .clickable(enabled = onItemClick != null) {
+                                .graphicsLayer {
+                                    scaleX = playScale
+                                    scaleY = playScale
+                                }
+                                .clickable(
+                                    interactionSource = playInteraction,
+                                    indication = null,
+                                    enabled = onItemClick != null,
+                                ) {
                                     onItemClick?.invoke(currentItem)
                                 },
                             color = Color.White,

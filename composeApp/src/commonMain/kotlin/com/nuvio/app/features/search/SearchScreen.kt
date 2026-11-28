@@ -270,7 +270,7 @@ fun SearchScreen(
                             value = query,
                             onValueChange = { query = it },
                             placeholder = stringResource(Res.string.compose_search_placeholder),
-                            shape = RoundedCornerShape(NuvioTokens.Radius.xl),
+                            shape = RoundedCornerShape(NuvioTokens.Radius.compactCard),
                             modifier = Modifier
                                 .focusRequester(focusRequester)
                                 .onFocusChanged { isSearchFocused = it.isFocused },
