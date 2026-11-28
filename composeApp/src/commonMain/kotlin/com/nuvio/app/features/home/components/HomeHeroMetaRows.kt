@@ -49,9 +49,13 @@ internal fun HomeHeroMetaRows(
         "series" -> stringResource(Res.string.media_series)
         else -> item.type.replaceFirstChar(Char::uppercase)
     }
-    val genre = item.genres.firstOrNull()?.takeIf { it.isNotBlank() }
+    val genre = item.genres.firstOrNull()?.trim()?.takeIf { raw ->
+        raw.isNotBlank() && raw.lowercase() != type && raw.lowercase() !in setOf("movie", "movies", "series", "tv")
+    }
     val runtime = formatRuntimeForDisplay(item.runtime)?.takeIf { it.isNotBlank() }
-    val release = item.releaseInfo?.takeIf { it.isNotBlank() }?.let(::formatReleaseDateForDisplay)
+    // Worker fallbacks can put the type ("Movie") into releaseInfo — only accept real dates/years.
+    val release = item.releaseInfo?.trim()?.takeIf { it.isNotBlank() && it.any(Char::isDigit) }
+        ?.let(::formatReleaseDateForDisplay)
     val status = item.status?.trim()?.takeIf { it.isNotBlank() }
         ?.let { localizedMediaStatusLabel(it, isSeries).uppercase() }
     val badges = listOfNotNull(item.ageRating?.trim()?.takeIf { it.isNotBlank() }, status)

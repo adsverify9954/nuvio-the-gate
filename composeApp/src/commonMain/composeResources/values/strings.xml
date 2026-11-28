@@ -1995,7 +1995,7 @@
     <string name="library_sort_provider_order">Tracker order</string>
     <string name="library_source_cloud">Cloud</string>
     <string name="library_source_saved">Saved</string>
-    <string name="library_title">Library</string>
+    <string name="library_title">My Netflix</string>
     <string name="library_trakt_empty_message">Connect Trakt and save titles to your watchlist or personal lists.</string>
     <string name="library_trakt_empty_title">Your Trakt library is empty</string>
     <string name="library_trakt_load_failed">Couldn't load Trakt library</string>
