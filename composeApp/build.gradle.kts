@@ -164,6 +164,21 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
             )
         }
 
+        // The Gate — permanent addon source manifest URL (Cloudflare Worker).
+        // Override per-build via `THE_GATE_MANIFEST` in local.properties.
+        outDir.resolve("com/nuvio/app/features/thegate").apply {
+            mkdirs()
+            resolve("TheGateEndpoint.kt").writeText(
+                """
+                |package com.nuvio.app.features.thegate
+                |
+                |object TheGateEndpoint {
+                |    const val MANIFEST = "${props.getProperty("THE_GATE_MANIFEST", "").takeIf { it.isNotBlank() } ?: "https://my-anime-gate.unityads9954.workers.dev/manifest.json"}"
+                |}
+                """.trimMargin()
+            )
+        }
+
         outDir.resolve("com/nuvio/app/features/debrid").apply {
             mkdirs()
             resolve("PremiumizeConfig.kt").writeText(

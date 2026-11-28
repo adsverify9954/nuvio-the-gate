@@ -212,6 +212,7 @@ data class StreamBehaviorHints(
     val videoSize: Long? = null,
     val filename: String? = null,
     val proxyHeaders: StreamProxyHeaders? = null,
+    val theGateWebview: Boolean = false,
 )
 
 data class StreamProxyHeaders(

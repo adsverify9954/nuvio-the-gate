@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
 import com.nuvio.app.core.sync.putSyncOriginClientId
 import com.nuvio.app.features.profiles.ProfileRepository
+import com.nuvio.app.features.thegate.TheGateConfig
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
@@ -68,13 +69,24 @@ object AddonRepository {
         log.d { "initialize() — loading local addons for profile $currentProfileId" }
 
         val storedUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId))
-        val enabledByUrl = loadLocalEnabledStates()
-        log.d { "initialize() — local addon count: ${storedUrls.size}" }
-        if (storedUrls.isEmpty()) return
+        // THE GATE LOCK: the only addon source is your Render backend.
+        val allowedUrls = TheGateConfig.allowedManifestUrls()
+        val keptUrls = if (TheGateConfig.ADDONS_LOCKED) {
+            storedUrls.filter { allowedUrls.contains(it) }
+        } else {
+            storedUrls
+        }
+        val seededUrls = dedupeManifestUrls(listOf(TheGateConfig.RENDER_BACKEND_MANIFEST) + keptUrls)
+        if (seededUrls != storedUrls) {
+            AddonStorage.saveInstalledAddonUrls(currentProfileId, seededUrls)
+        }
+        val enabledByUrl = loadLocalEnabledStates() + mapOf(TheGateConfig.RENDER_BACKEND_MANIFEST to true)
+        log.d { "initialize() — local addon count: ${seededUrls.size}" }
+        if (seededUrls.isEmpty()) return
 
         val existingByUrl = _uiState.value.addons.associateBy(ManagedAddon::manifestUrl)
         _uiState.value = AddonsUiState(
-            addons = storedUrls.map { manifestUrl ->
+            addons = seededUrls.map { manifestUrl ->
                 existingByUrl[manifestUrl].toPendingAddon(
                     manifestUrl = manifestUrl,
                     enabled = enabledByUrl[manifestUrl],
@@ -82,7 +94,7 @@ object AddonRepository {
             },
         )
 
-        storedUrls.forEach { manifestUrl ->
+        seededUrls.forEach { manifestUrl ->
             val existing = existingByUrl[manifestUrl]
             val addon = _uiState.value.addons.firstOrNull { it.manifestUrl == manifestUrl }
             if (addon?.enabled == true && (existing == null || (addon.manifest == null && !addon.isRefreshing))) {
@@ -121,8 +133,19 @@ object AddonRepository {
                 }
                 .decodeList<AddonRow>()
 
+            // THE GATE LOCK: drop every third-party addon synced from Supabase.
+            val lockedRows = if (TheGateConfig.ADDONS_LOCKED) {
+                rows.filter { ensureManifestSuffix(it.url) == TheGateConfig.RENDER_BACKEND_MANIFEST }
+            } else {
+                rows
+            }
             val rowsByUrl = linkedMapOf<String, AddonRow>()
-            rows.forEach { row ->
+            rowsByUrl[TheGateConfig.RENDER_BACKEND_MANIFEST] = AddonRow(
+                url = TheGateConfig.RENDER_BACKEND_MANIFEST,
+                name = "The Gate",
+                enabled = true,
+            )
+            lockedRows.forEach { row ->
                 val manifestUrl = ensureManifestSuffix(row.url)
                 if (!rowsByUrl.containsKey(manifestUrl)) {
                     rowsByUrl[manifestUrl] = row.copy(url = manifestUrl)
@@ -179,6 +202,10 @@ object AddonRepository {
             return AddAddonResult.Error(error.message ?: getString(Res.string.addon_invalid_url))
         }
 
+        if (TheGateConfig.ADDONS_LOCKED && manifestUrl != TheGateConfig.RENDER_BACKEND_MANIFEST) {
+            return AddAddonResult.Error("Only The Gate is available on this build")
+        }
+
         if (_uiState.value.addons.any { it.manifestUrl == manifestUrl }) {
             return AddAddonResult.Error(getString(Res.string.addon_already_installed))
         }
@@ -211,6 +238,7 @@ object AddonRepository {
     }
 
     fun removeAddon(manifestUrl: String) {
+        if (manifestUrl == TheGateConfig.RENDER_BACKEND_MANIFEST) return
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         log.i { "removeAddon() — $manifestUrl" }
         var changed = false
@@ -249,6 +277,7 @@ object AddonRepository {
     }
 
     fun setAddonEnabled(manifestUrl: String, enabled: Boolean) {
+        if (manifestUrl == TheGateConfig.RENDER_BACKEND_MANIFEST && !enabled) return
         if (isUsingPrimaryAddonsFromSecondaryProfile()) return
         var shouldRefresh = false
         var changed = false
@@ -402,7 +431,8 @@ object AddonRepository {
         )
         AddonStorage.saveAddonEnabledStates(
             currentProfileId,
-            addons.associate { it.manifestUrl to it.enabled },
+            (addons.associate { it.manifestUrl to it.enabled } +
+                mapOf(TheGateConfig.RENDER_BACKEND_MANIFEST to true)),
         )
     }
 
@@ -425,6 +455,9 @@ object AddonRepository {
         return active != null && active.profileIndex != 1 && active.usesPrimaryAddons
     }
 }
+
+private fun TheGateConfig.allowedManifestUrls(): Set<String> =
+    if (ADDONS_LOCKED) setOf(RENDER_BACKEND_MANIFEST) else emptySet()
 
 private fun ManagedAddon?.toPendingAddon(
     manifestUrl: String,
